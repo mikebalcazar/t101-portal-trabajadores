@@ -1,0 +1,29 @@
+name = "t101-portal"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "t101-trabajadores"
+database_id = "64afff63-bbb7-424d-8d25-1d440af2b840"
+
+[[r2_buckets]]
+binding = "DOCS"
+bucket_name = "t101-documentos"
+
+[vars]
+EMPRESA = "Taller 101"
+CORREO_REMITENTE = "Taller 101 <expedientes@envios.taller101.mx>"
+CORREO_AVISOS = "mike@forespot.com"
+
+# Datos del responsable, para el aviso de privacidad. Cambiar aquí = cambiar el
+# aviso completo; es lo único que hay que tocar para montarle el portal a otro negocio.
+RAZON_SOCIAL = "Taller 101"
+DOMICILIO = "Ciudad de México, México"
+CORREO_PRIVACIDAD = "mike@forespot.com"
+AVISO_VERSION = "2026-09-01"

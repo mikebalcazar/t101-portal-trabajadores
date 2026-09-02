@@ -1,0 +1,289 @@
+/* Portal de Trabajadores — Taller 101 */
+@import url('https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&display=swap');
+
+:root{
+  --marca:#0080C1;
+  --marca-clara:#3AA3DC;
+  --marca-sombra:#122733;
+  --canto:#C8813A;
+  --alerta:#C9694A;
+  --ok:#1a7f37;
+  --papel:#f4f6f8;
+  --tinta:#122733;
+  --tenue:#6b7a85;
+  --linea:#e2e8ed;
+  --radio:12px;
+  --sombra:0 1px 3px rgba(18,39,51,.07), 0 6px 20px rgba(18,39,51,.06);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:'Raleway',system-ui,-apple-system,'Segoe UI',sans-serif;
+  background:var(--papel); color:var(--tinta);
+  font-size:16px; line-height:1.5;
+  -webkit-text-size-adjust:100%;
+}
+a{color:var(--marca)}
+
+/* ── encabezado ── */
+.barra{
+  background:var(--marca); color:#fff;
+  padding:14px 18px; display:flex; align-items:center; gap:12px;
+  position:sticky; top:0; z-index:40;
+  box-shadow:0 2px 10px rgba(18,39,51,.12);
+}
+.barra .logo{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.5px;font-size:18px}
+.barra .logo img{height:26px;width:auto;display:block}
+.barra .der{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:13px}
+.barra button{
+  background:rgba(255,255,255,.16); color:#fff; border:1px solid rgba(255,255,255,.3);
+  border-radius:8px; padding:7px 12px; font:inherit; font-size:13px; cursor:pointer;
+}
+.barra button:hover{background:rgba(255,255,255,.28)}
+
+.envoltura{max-width:820px;margin:0 auto;padding:20px 16px 80px}
+.ancho{max-width:1240px}
+
+/* ── tarjetas ── */
+.tarjeta{
+  background:#fff; border-radius:var(--radio); box-shadow:var(--sombra);
+  padding:22px; margin-bottom:18px; border:1px solid var(--linea);
+}
+.tarjeta h2{
+  margin:0 0 4px; font-size:17px; font-weight:800; color:var(--marca-sombra);
+  display:flex; align-items:center; gap:9px;
+}
+.tarjeta h2 .num{
+  background:var(--marca); color:#fff; width:24px; height:24px; border-radius:50%;
+  display:inline-flex; align-items:center; justify-content:center; font-size:13px; flex:0 0 auto;
+}
+.tarjeta .ayuda{margin:0 0 16px; color:var(--tenue); font-size:14px}
+
+/* ── formularios ── */
+.rejilla{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+.rejilla.tres{grid-template-columns:1fr 1fr 1fr}
+@media (max-width:640px){ .rejilla,.rejilla.tres{grid-template-columns:1fr} }
+.campo{display:flex;flex-direction:column;gap:6px}
+.campo.ancho-total{grid-column:1/-1}
+label{font-size:13px;font-weight:600;color:var(--marca-sombra)}
+label .opc{font-weight:500;color:var(--tenue)}
+input,select,textarea{
+  font:inherit; font-size:16px; padding:12px 13px; border:1.5px solid var(--linea);
+  border-radius:10px; background:#fff; color:var(--tinta); width:100%;
+  transition:border-color .12s, box-shadow .12s;
+}
+input:focus,select:focus,textarea:focus{
+  outline:none; border-color:var(--marca); box-shadow:0 0 0 3px rgba(0,128,193,.14);
+}
+input.mal{border-color:var(--alerta); background:#fdf6f4}
+.error{color:var(--alerta); font-size:12.5px; min-height:0}
+.pista{color:var(--tenue); font-size:12.5px}
+
+/* ── botones ── */
+.btn{
+  font:inherit; font-weight:700; font-size:15px; border:none; border-radius:10px;
+  padding:13px 20px; cursor:pointer; display:inline-flex; align-items:center;
+  justify-content:center; gap:8px; transition:background .12s, transform .06s;
+}
+.btn:active{transform:translateY(1px)}
+.btn.primario{background:var(--marca); color:#fff}
+.btn.primario:hover{background:#0071ad}
+.btn.primario:disabled{background:#9fc4d9; cursor:not-allowed}
+.btn.suave{background:#eef4f8; color:var(--marca-sombra); border:1.5px solid var(--linea)}
+.btn.suave:hover{background:#e3edf3}
+.btn.peligro{background:#fdeeea; color:var(--alerta); border:1.5px solid #f3d6cd}
+.btn.bloque{width:100%}
+.btn.chico{padding:8px 13px; font-size:13.5px; border-radius:8px}
+
+/* ── documentos ── */
+.docs{display:flex;flex-direction:column;gap:10px}
+.doc{
+  display:flex; align-items:center; gap:12px; padding:13px 14px;
+  border:1.5px solid var(--linea); border-radius:10px; background:#fbfcfd;
+}
+.doc.listo{border-color:#bfe3c9; background:#f4fbf6}
+.doc .marca{
+  width:34px;height:34px;border-radius:9px;flex:0 0 auto;display:flex;
+  align-items:center;justify-content:center;font-size:16px;
+  background:#eaf3f9; color:var(--marca);
+}
+.doc.listo .marca{background:#dff3e5;color:var(--ok)}
+.doc .info{flex:1;min-width:0}
+.doc .info b{display:block;font-size:14.5px}
+.doc .info small{color:var(--tenue);font-size:12.5px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc .acciones{display:flex;gap:6px;flex:0 0 auto}
+.oculto{display:none !important}
+
+/* ── foto ── */
+.foto-caja{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.foto-vista{
+  width:110px;height:110px;border-radius:14px;object-fit:cover;
+  border:2px solid var(--linea); background:#eef2f5;
+  display:flex;align-items:center;justify-content:center;color:var(--tenue);font-size:12px;text-align:center
+}
+video.foto-vista{object-fit:cover}
+
+/* ── firma ── */
+.lienzo-firma{
+  width:100%; touch-action:none; background:#fff;
+  border:1.5px dashed var(--marca-clara); border-radius:10px; display:block;
+}
+.modal{
+  position:fixed; inset:0; background:rgba(18,39,51,.62); z-index:60;
+  display:flex; align-items:center; justify-content:center; padding:14px;
+}
+.modal .caja{
+  background:#fff; border-radius:14px; width:100%; max-width:560px;
+  max-height:92vh; overflow:auto; padding:20px;
+}
+
+/* ── avisos ── */
+.aviso{padding:13px 15px;border-radius:10px;font-size:14.5px;margin-bottom:16px;line-height:1.45}
+.aviso.info{background:#eaf4fa;color:#0b5c86;border:1px solid #cbe4f1}
+.aviso.bien{background:#eef8f1;color:#1a5c2c;border:1px solid #cfe9d8}
+.aviso.mal{background:#fdf0ec;color:#8f3a22;border:1px solid #f3d6cd}
+
+/* ── progreso ── */
+.progreso{height:8px;background:#e6edf2;border-radius:99px;overflow:hidden;margin:10px 0 6px}
+.progreso i{display:block;height:100%;background:var(--marca);transition:width .3s}
+
+.etiqueta{display:inline-block;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:700}
+.etiqueta.completo{background:#dff3e5;color:var(--ok)}
+.etiqueta.borrador{background:#fdf1e3;color:var(--canto)}
+
+/* ── tabla admin ── */
+.tabla-caja{overflow-x:auto;border:1px solid var(--linea);border-radius:var(--radio);background:#fff}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:900px}
+th{background:#f0f5f9;text-align:left;padding:11px 12px;font-weight:700;color:var(--marca-sombra);white-space:nowrap;border-bottom:1.5px solid var(--linea)}
+td{padding:10px 12px;border-bottom:1px solid #eef2f5;vertical-align:middle}
+tbody tr:hover{background:#f8fbfd}
+.mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+
+.cargando{display:inline-block;width:15px;height:15px;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:giro .7s linear infinite}
+@keyframes giro{to{transform:rotate(360deg)}}
+.centrado{text-align:center}
+.pie{text-align:center;color:var(--tenue);font-size:12.5px;padding:20px 0}
+
+.btn.chico{white-space:nowrap}
+td .btn.chico{padding:5px 9px;font-size:12.5px}
+
+@media (max-width:560px){
+  .barra{padding:11px 14px}
+  .barra .logo{font-size:15px}
+  .barra .der #quien{display:none}
+  .doc{padding:11px 12px;gap:9px}
+  .doc .info b{font-size:14px;line-height:1.3}
+  .doc .acciones{flex-direction:column}
+  .tarjeta{padding:18px 16px}
+}
+
+/* ══════════ cámara a pantalla completa ══════════ */
+.camara{
+  position:fixed; inset:0; z-index:90; background:#000;
+  display:flex; align-items:center; justify-content:center;
+  overscroll-behavior:none;
+}
+.camara video, .camara img{
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:cover; background:#000;
+}
+.camara img{display:none}
+.camara.confirmando video{display:none}
+.camara.confirmando img{display:block}
+.camara.confirmando .cam-guia,
+.camara.confirmando .cam-pista{display:none}
+
+/* franjas de arriba y abajo para que se lean los controles */
+.cam-arriba{
+  position:absolute; top:0; left:0; right:0; z-index:3;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:max(14px, env(safe-area-inset-top)) 16px 26px;
+  color:#fff; font-weight:700; font-size:15px;
+  background:linear-gradient(to bottom, rgba(0,0,0,.62), rgba(0,0,0,0));
+}
+.cam-redondo{
+  width:42px; height:42px; flex:0 0 auto; border-radius:50%;
+  background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.35);
+  color:#fff; font-size:19px; line-height:1; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+}
+.cam-redondo:active{background:rgba(255,255,255,.34)}
+
+.cam-pista{
+  position:absolute; left:16px; right:16px; z-index:3;
+  bottom:calc(190px + env(safe-area-inset-bottom));
+  margin:0; text-align:center; color:#fff; font-size:14.5px; font-weight:600;
+  text-shadow:0 1px 6px rgba(0,0,0,.8);
+}
+
+.cam-abajo{
+  position:absolute; left:0; right:0; bottom:0; z-index:3;
+  padding:24px 16px max(24px, env(safe-area-inset-bottom));
+  background:linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,0));
+  display:flex; flex-direction:column; align-items:center; gap:10px;
+}
+/* El obturador: grande, blanco, imposible de no ver */
+.cam-obturador{
+  width:86px; height:86px; border-radius:50%; cursor:pointer;
+  background:transparent; border:5px solid #fff; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 0 0 3px rgba(0,0,0,.28);
+}
+.cam-obturador span{
+  display:block; width:66px; height:66px; border-radius:50%;
+  background:#fff; transition:transform .1s, background .1s;
+}
+.cam-obturador:active span{transform:scale(.86); background:var(--marca-clara)}
+.cam-etiqueta{margin:0; color:#fff; font-size:13px; opacity:.9; text-shadow:0 1px 5px rgba(0,0,0,.8)}
+.cam-confirma{display:flex; gap:12px; width:100%; max-width:420px}
+.cam-confirma .btn{flex:1; padding:15px 18px}
+
+/* guía de encuadre */
+.cam-guia{position:absolute; inset:0; z-index:2; pointer-events:none;
+  display:flex; align-items:center; justify-content:center}
+.cam-marco{
+  width:min(70vw, 300px); aspect-ratio:1/1.25; border-radius:50%;
+  border:3px dashed rgba(255,255,255,.75);
+  box-shadow:0 0 0 100vmax rgba(0,0,0,.32);
+}
+.cam-guia.documento .cam-marco{
+  width:min(90vw, 560px); aspect-ratio:1.586/1; border-radius:14px;
+}
+
+/* ══════════ guardado automático ══════════ */
+.marca-guardado{
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:12.5px; font-weight:600; color:var(--ok);
+}
+.marca-guardado.trabajando{color:var(--tenue)}
+
+#cam-video.espejo{transform:scaleX(-1)}
+
+.camara.confirmando #cam-voltear{visibility:hidden}
+
+/* ══════════ aviso de privacidad ══════════ */
+.legal{
+  max-height:46vh; overflow-y:auto; padding:16px 18px; margin:4px 0 18px;
+  border:1.5px solid var(--linea); border-radius:10px; background:#fbfcfd;
+  font-size:14.5px; line-height:1.6;
+  overscroll-behavior:contain;
+}
+.legal h3{
+  margin:20px 0 6px; font-size:14.5px; font-weight:800; color:var(--marca-sombra);
+}
+.legal h3:first-child{margin-top:0}
+.legal p{margin:0 0 10px}
+.legal ul{margin:0 0 10px; padding-left:20px}
+.legal li{margin-bottom:4px}
+.legal .fuerte{
+  background:#eaf4fa; border-left:3px solid var(--marca);
+  padding:10px 12px; border-radius:0 8px 8px 0; margin:0 0 12px;
+}
+.legal .sello{color:var(--tenue); font-size:12.5px; margin-top:16px}
+.acepto{
+  display:flex; gap:11px; align-items:flex-start; cursor:pointer;
+  padding:14px; border:1.5px solid var(--linea); border-radius:10px;
+  margin-bottom:12px; font-weight:500; font-size:14.5px; line-height:1.45;
+}
+.acepto:has(input:checked){border-color:var(--marca); background:#f2f9fd}
+.acepto input{width:22px; height:22px; flex:0 0 auto; margin:1px 0 0; accent-color:var(--marca)}

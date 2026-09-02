@@ -1,0 +1,19 @@
+{
+  "name": "t101-portal-trabajadores",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Portal de Trabajadores Taller 101 — expedientes y documentos",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:local": "wrangler d1 execute t101-trabajadores --local --file=./schema.sql",
+    "db:remote": "wrangler d1 execute t101-trabajadores --remote --file=./schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "hono": "^4.6.0"
+  }
+}

@@ -1,0 +1,63 @@
+# Publica el Portal de Trabajadores en Cloudflare cada vez que cambia el cÃ³digo.
+# Con esto ya no hace falta la computadora de nadie: GitHub lo despliega solo.
+#
+# Requisitos (una sola vez, en Settings â†’ Secrets and variables â†’ Actions):
+#   CLOUDFLARE_API_TOKEN   token con Workers Scripts:Edit, Workers R2 Storage:Edit,
+#                          D1:Edit, Account Settings:Read, User Details:Read
+#   CLAVE_ADMIN            clave del panel de administraciÃ³n
+#   RESEND_API_KEY         llave de envÃ­o de correos
+#   SECRETO                cadena larga y aleatoria que firma las sesiones
+name: Publicar portal
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:        # botÃ³n para publicar a mano desde la web de GitHub
+
+concurrency:
+  group: despliegue
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Aplicar el esquema de la base
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler d1 execute t101-trabajadores --remote --file=./schema.sql --yes
+
+      - name: Publicar
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler deploy
+
+      # Los secretos se vuelven a mandar en cada despliegue: asÃ­ el estado del
+      # Worker siempre coincide con lo que estÃ¡ guardado en GitHub, y si alguien
+      # rota una llave basta cambiar el secreto y volver a publicar.
+      - name: Actualizar secretos del Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          SECRETO: ${{ secrets.SECRETO }}
+          CLAVE_ADMIN: ${{ secrets.CLAVE_ADMIN }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          set -e
+          printf '%s' "$SECRETO"        | npx wrangler secret put SECRETO
+          printf '%s' "$CLAVE_ADMIN"    | npx wrangler secret put CLAVE_ADMIN
+          printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY
+
+      - name: Revisar que el portal responda
+        run: |
+          sleep 12
+          curl -fsS https://t101-portal.mike-929.workers.dev/api/salud

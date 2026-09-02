@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0080C1">
+<title>Administración — Portal de Trabajadores Taller 101</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/estilos.css">
+</head>
+<body>
+
+<header class="barra">
+  <div class="logo"><img src="/logo.svg" alt="Taller 101"><span>Administración</span></div>
+  <div class="der">
+    <button id="btn-salir" class="oculto">Salir</button>
+  </div>
+</header>
+
+<main id="acceso" class="envoltura" style="max-width:420px">
+  <div class="tarjeta">
+    <h2>Acceso de administración</h2>
+    <p class="ayuda">Solo para el equipo de administración de Taller 101.</p>
+    <div class="campo">
+      <label for="clave">Clave</label>
+      <input id="clave" type="password" autocomplete="current-password" placeholder="••••••••">
+      <div class="error" id="acc-error"></div>
+    </div>
+    <button id="btn-entrar" class="btn primario bloque" style="margin-top:12px">Entrar</button>
+  </div>
+  <p class="pie"><a href="/">← Ir al portal del trabajador</a></p>
+</main>
+
+<main id="panel" class="envoltura ancho oculto">
+  <div class="tarjeta">
+    <h2>Expedientes</h2>
+    <p class="ayuda" id="resumen">Cargando…</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+      <button id="btn-zip" class="btn primario">⬇ Exportar todo (ZIP con carpetas)</button>
+      <a id="btn-csv" class="btn suave" href="/api/admin/tabla.csv">⬇ Solo la tabla (CSV)</a>
+      <button id="btn-refrescar" class="btn suave">↻ Actualizar</button>
+      <input id="buscar" placeholder="Buscar por nombre, CURP, correo…" style="flex:1;min-width:220px">
+    </div>
+  </div>
+
+  <div class="tabla-caja">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Trabajador</th><th>Contacto</th><th>NSS / CURP</th>
+          <th>Banco</th><th>Emergencia</th><th>Documentos</th><th>Estado</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="cuerpo"></tbody>
+    </table>
+  </div>
+  <p class="pie">Taller 101 · Portal de Trabajadores</p>
+</main>
+
+<script src="/admin.js"></script>
+</body>
+</html>

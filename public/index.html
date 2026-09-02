@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0080C1">
+<title>Portal de Trabajadores — Taller 101</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/estilos.css">
+</head>
+<body>
+
+<header class="barra">
+  <div class="logo"><img src="/logo.svg" alt="Taller 101"><span>Portal de Trabajadores</span></div>
+  <div class="der">
+    <span id="quien"></span>
+    <button id="btn-salir" class="oculto">Salir</button>
+  </div>
+</header>
+
+<!-- ═══════════ ACCESO ═══════════ -->
+<main id="acceso" class="envoltura">
+  <div class="tarjeta">
+    <h2>Entra a tu expediente</h2>
+    <p class="ayuda">Escribe tu correo. Te mandamos un código de 6 dígitos para entrar. No necesitas contraseña.</p>
+
+    <div id="paso-correo">
+      <div class="campo">
+        <label for="acc-email">Correo electrónico</label>
+        <input id="acc-email" type="email" inputmode="email" autocomplete="email" placeholder="tucorreo@ejemplo.com">
+        <div class="error" id="acc-error"></div>
+      </div>
+      <button id="btn-codigo" class="btn primario bloque" style="margin-top:12px">Enviarme el código</button>
+    </div>
+
+    <div id="paso-codigo" class="oculto">
+      <div class="aviso info">Te mandamos un código a <b id="eco-email"></b>. Revisa también la carpeta de correo no deseado.</div>
+      <div class="campo">
+        <label for="acc-codigo">Código de 6 dígitos</label>
+        <input id="acc-codigo" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
+               style="letter-spacing:8px;font-size:24px;text-align:center;font-weight:700" placeholder="000000">
+        <div class="error" id="cod-error"></div>
+      </div>
+      <button id="btn-entrar" class="btn primario bloque" style="margin-top:12px">Entrar</button>
+      <button id="btn-otro-correo" class="btn suave bloque" style="margin-top:8px">Usar otro correo</button>
+    </div>
+  </div>
+  <p class="pie">Taller 101 · Uso interno. Tus datos se guardan cifrados y solo los ve administración.</p>
+</main>
+
+<!-- ═══════════ AVISO DE PRIVACIDAD ═══════════ -->
+<main id="aviso" class="envoltura oculto">
+  <div class="tarjeta">
+    <h2>Antes de empezar: qué hacemos con tus datos</h2>
+    <p class="ayuda">
+      Léelo con calma. Te pedimos datos delicados —tu CURP, tu NSS, tu cuenta de banco—
+      y tienes derecho a saber exactamente para qué son y qué puedes hacer si algo no te parece.
+    </p>
+    <div id="texto-aviso" class="legal">Cargando…</div>
+
+    <label class="acepto" for="chk-aviso">
+      <input type="checkbox" id="chk-aviso">
+      <span>Leí el aviso y acepto que <b id="eco-empresa">la empresa</b> trate mis datos personales para lo que aquí dice.</span>
+    </label>
+    <div class="error" id="aviso-error"></div>
+    <button id="btn-aceptar-aviso" class="btn primario bloque" style="margin-top:6px">Acepto y continúo</button>
+    <button id="btn-rechazar-aviso" class="btn suave bloque" style="margin-top:8px">No acepto — salir</button>
+  </div>
+</main>
+
+<!-- ═══════════ PANEL ═══════════ -->
+<main id="panel" class="envoltura oculto">
+
+  <div class="tarjeta">
+    <h2>Tu expediente <span id="etiqueta-estado" class="etiqueta borrador" style="margin-left:auto">Incompleto</span></h2>
+    <div class="progreso"><i id="barra-progreso" style="width:0%"></i></div>
+    <p class="ayuda" id="texto-progreso" style="margin:0 0 10px">Cargando…</p>
+    <div class="aviso info" style="margin:0">
+      <b>No tienes que terminarlo hoy.</b> Todo lo que escribas se guarda solo.
+      Puedes cerrar y volver cuando consigas los papeles que te falten: entras con tu mismo correo.
+    </div>
+    <div id="aviso-global"></div>
+  </div>
+
+  <!-- Datos personales -->
+  <section class="tarjeta">
+    <h2><span class="num">1</span> Datos personales</h2>
+    <p class="ayuda">Como aparecen en tu identificación oficial.</p>
+    <div class="rejilla">
+      <div class="campo ancho-total">
+        <label for="f-nombre">Nombre completo <span class="opc">(nombre o nombres)</span></label>
+        <input id="f-nombre" data-c="nombre" autocomplete="given-name" placeholder="Juan Carlos">
+        <div class="error" data-e="nombre"></div>
+      </div>
+      <div class="campo">
+        <label for="f-apellido_paterno">Apellido paterno</label>
+        <input id="f-apellido_paterno" data-c="apellido_paterno" placeholder="Hernández">
+        <div class="error" data-e="apellido_paterno"></div>
+      </div>
+      <div class="campo">
+        <label for="f-apellido_materno">Apellido materno</label>
+        <input id="f-apellido_materno" data-c="apellido_materno" placeholder="López">
+        <div class="error" data-e="apellido_materno"></div>
+      </div>
+      <div class="campo">
+        <label for="f-celular">Celular personal <span class="opc">(10 dígitos)</span></label>
+        <input id="f-celular" data-c="celular" type="tel" inputmode="numeric" maxlength="14" placeholder="55 1234 5678">
+        <div class="error" data-e="celular"></div>
+      </div>
+      <div class="campo">
+        <label for="f-puesto">Puesto <span class="opc">(opcional)</span></label>
+        <input id="f-puesto" data-c="puesto" placeholder="Ebanista, ayudante, chofer…">
+      </div>
+      <div class="campo">
+        <label for="f-nss">NSS <span class="opc">(11 dígitos)</span></label>
+        <input id="f-nss" data-c="nss" inputmode="numeric" maxlength="13" placeholder="12345678901">
+        <div class="error" data-e="nss"></div>
+      </div>
+      <div class="campo">
+        <label for="f-curp">CURP <span class="opc">(18 caracteres)</span></label>
+        <input id="f-curp" data-c="curp" maxlength="18" style="text-transform:uppercase" placeholder="HELJ900101HDFRPN05">
+        <div class="error" data-e="curp"></div>
+      </div>
+      <div class="campo ancho-total">
+        <label for="f-rfc">RFC <span class="opc">(viene en tu Cédula de Situación Fiscal)</span></label>
+        <input id="f-rfc" data-c="rfc" maxlength="13" style="text-transform:uppercase" placeholder="HELJ900101AB1">
+        <div class="error" data-e="rfc"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Fotografía -->
+  <section class="tarjeta">
+    <h2><span class="num">2</span> Tu fotografía</h2>
+    <p class="ayuda">De frente, con buena luz y sin lentes oscuros. Puedes tomarla ahorita.</p>
+    <div class="foto-caja">
+      <img id="foto-vista" class="foto-vista oculto" alt="Tu foto">
+      <video id="foto-video" class="foto-vista oculto" autoplay playsinline muted></video>
+      <div id="foto-vacia" class="foto-vista">Sin foto</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button id="btn-foto-camara" class="btn primario chico">📷 Tomar la foto ahora</button>
+        <button id="btn-foto-archivo" class="btn suave chico">📁 Subir una que ya tenga</button>
+      </div>
+    </div>
+    <input id="entrada-foto" type="file" accept="image/*" class="oculto">
+  </section>
+
+  <!-- Datos bancarios -->
+  <section class="tarjeta">
+    <h2><span class="num">3</span> Cuenta bancaria para tus pagos</h2>
+    <p class="ayuda">La cuenta tiene que estar a tu nombre. Revisa bien la CLABE: con un dígito mal, el pago se regresa.</p>
+    <div class="rejilla">
+      <div class="campo">
+        <label for="f-banco">Banco</label>
+        <input id="f-banco" data-c="banco" list="bancos" placeholder="BBVA">
+        <datalist id="bancos">
+          <option>BBVA</option><option>Banorte</option><option>Santander</option><option>Banamex</option>
+          <option>HSBC</option><option>Scotiabank</option><option>Inbursa</option><option>Azteca</option>
+          <option>BanCoppel</option><option>Nu</option><option>Hey Banco</option><option>Klar</option>
+          <option>Banco del Bienestar</option><option>Afirme</option><option>BanBajío</option><option>Mifel</option>
+        </datalist>
+        <div class="error" data-e="banco"></div>
+      </div>
+      <div class="campo">
+        <label for="f-clabe">CLABE interbancaria <span class="opc">(18 dígitos)</span></label>
+        <input id="f-clabe" data-c="clabe" inputmode="numeric" maxlength="22" placeholder="012 180 01234567890 1">
+        <div class="error" data-e="clabe"></div>
+      </div>
+      <div class="campo ancho-total">
+        <label for="f-beneficiario">Beneficiario <span class="opc">(nombre del titular de la cuenta)</span></label>
+        <input id="f-beneficiario" data-c="beneficiario" placeholder="Juan Carlos Hernández López">
+        <div class="error" data-e="beneficiario"></div>
+      </div>
+    </div>
+    <div id="estado-firma" class="aviso info" style="margin-top:16px">Cuando termines de escribir los datos, fírmalos.</div>
+    <button id="btn-firmar" class="btn primario bloque">✍️ Revisar y firmar mis datos bancarios</button>
+  </section>
+
+  <!-- Emergencia -->
+  <section class="tarjeta">
+    <h2><span class="num">4</span> Contacto de emergencia</h2>
+    <p class="ayuda">A quién le hablamos si te pasa algo en el trabajo.</p>
+    <div class="rejilla tres">
+      <div class="campo">
+        <label for="f-emerg_nombre">Nombre</label>
+        <input id="f-emerg_nombre" data-c="emerg_nombre" placeholder="María López">
+        <div class="error" data-e="emerg_nombre"></div>
+      </div>
+      <div class="campo">
+        <label for="f-emerg_telefono">Teléfono</label>
+        <input id="f-emerg_telefono" data-c="emerg_telefono" type="tel" inputmode="numeric" maxlength="14" placeholder="55 8765 4321">
+        <div class="error" data-e="emerg_telefono"></div>
+      </div>
+      <div class="campo">
+        <label for="f-emerg_email">Correo <span class="opc">(opcional)</span></label>
+        <input id="f-emerg_email" data-c="emerg_email" type="email" placeholder="maria@ejemplo.com">
+        <div class="error" data-e="emerg_email"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Documentos -->
+  <section class="tarjeta">
+    <h2><span class="num">5</span> Documentos escaneados</h2>
+    <p class="ayuda">Foto o PDF, máximo 10 MB cada uno. Que se lean bien los datos y se vean las cuatro esquinas.</p>
+    <div id="lista-docs" class="docs"></div>
+    <input id="entrada-doc" type="file" accept="image/*,application/pdf" class="oculto">
+  </section>
+
+  <div class="tarjeta" style="position:sticky;bottom:12px">
+    <button id="btn-terminar" class="btn primario bloque">Ya terminé — revisar y enviar</button>
+    <button id="btn-avance" class="btn suave bloque" style="margin-top:8px">Guardar y seguir después</button>
+    <p class="pista centrado" style="margin:10px 0 0" id="pista-guardado">
+      Tus datos se guardan solos mientras escribes.
+    </p>
+  </div>
+
+  <p class="pie"><a href="#" id="ver-aviso">Aviso de privacidad</a> · Taller 101 · <a href="/admin">Administración</a></p>
+</main>
+
+<!-- ═══════════ CÁMARA PANTALLA COMPLETA ═══════════ -->
+<div id="camara" class="camara oculto">
+  <video id="cam-video" playsinline autoplay muted></video>
+  <img id="cam-previa" alt="Foto tomada">
+
+  <div class="cam-guia" id="cam-guia"><div class="cam-marco"></div></div>
+
+  <div class="cam-arriba">
+    <button id="cam-cerrar" class="cam-redondo" aria-label="Cerrar">✕</button>
+    <span id="cam-titulo">Tu fotografía</span>
+    <button id="cam-voltear" class="cam-redondo" aria-label="Cambiar cámara">⇄</button>
+  </div>
+
+  <p class="cam-pista" id="cam-pista">Acomoda tu cara dentro del óvalo</p>
+
+  <div class="cam-abajo" id="cam-abajo-tomar">
+    <button id="cam-disparar" class="cam-obturador" aria-label="Tomar foto"><span></span></button>
+    <p class="cam-etiqueta">Pícale al botón blanco</p>
+  </div>
+
+  <div class="cam-abajo oculto" id="cam-abajo-confirmar">
+    <div class="cam-confirma">
+      <button id="cam-repetir" class="btn suave">↻ Repetir</button>
+      <button id="cam-usar" class="btn primario">Usar esta foto</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL FIRMA ═══════════ -->
+<div id="modal-firma" class="modal oculto">
+  <div class="caja">
+    <h2 style="margin:0 0 6px;font-size:17px">Firma tus datos bancarios</h2>
+    <p class="ayuda" style="color:var(--tenue);font-size:14px;margin:0 0 14px">
+      Revisa que todo esté correcto y firma con el dedo (o el mouse) sobre el recuadro.
+    </p>
+    <canvas id="lienzo-firma" class="lienzo-firma"></canvas>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button id="btn-borrar-firma" class="btn suave" style="flex:1">Borrar</button>
+      <button id="btn-cerrar-firma" class="btn suave" style="flex:1">Cancelar</button>
+      <button id="btn-guardar-firma" class="btn primario" style="flex:2">Guardar firma</button>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
