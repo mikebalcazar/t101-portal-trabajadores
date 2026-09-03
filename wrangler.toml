@@ -24,9 +24,9 @@ CORREO_AVISOS = "mike@forespot.com"
 # Datos del responsable, para el aviso de privacidad. Cambiar aquí = cambiar el
 # aviso completo; es lo único que hay que tocar para montarle el portal a otro negocio.
 RAZON_SOCIAL = "Taller 101"
-DOMICILIO = "Ciudad de México, México"
+DOMICILIO = "5 de Mayo 60, San Nicolás Totolapan, La Magdalena Contreras, C.P. 10900, Ciudad de México"
 CORREO_PRIVACIDAD = "mike@forespot.com"
-AVISO_VERSION = "2026-09-01"
+AVISO_VERSION = "2026-09-03"
 
 # Barrido diario de la papelera: a las 4:00 UTC (10 u 11 de la noche en el centro
 # de México, según el horario). Borra de verdad lo que ya cumplió 30 días.

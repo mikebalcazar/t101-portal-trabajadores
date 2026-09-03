@@ -4,6 +4,7 @@ Cada renglón es una versión publicada. La más reciente hasta arriba.
 
 | Fecha | Versión | Qué cambió |
 |---|---|---|
+| 2026-09-03 | 0.1.5 | **Domicilio fiscal en el aviso de privacidad**: 5 de Mayo 60, San Nicolás Totolapan, La Magdalena Contreras, C.P. 10900, Ciudad de México. El aviso pasa a la versión `2026-09-03`. |
 | 2026-09-03 | 0.1.4 | El teléfono del contacto de emergencia ya no puede ser el mismo celular del trabajador: ese contacto no serviría de nada. Se avisa mientras escribe y el servidor lo rechaza al guardar. |
 | 2026-09-02 | 0.1.3 | **Primer despliegue automático desde GitHub Actions.** Además, en el mismo empujón: identificación en dos fotos (frente y reverso, cada una obligatoria); **fichas en PDF** de los trabajadores que se palomeen, con los datos bancarios aparte; **papelera de 30 días**, que aparta en vez de borrar y barre sola con el reloj de Cloudflare; **freno contra adivinar la clave de administración** (3 fallos y bloqueo de 15 min, 1 h, 4 h, 24 h, por dirección); **datos que no se repiten** entre expedientes (CURP, NSS, RFC, celular y correo); y la indicación de cada documento ya se lee completa en el celular, sin recortarse. |
 | 2026-09-01 | 0.1.2 | Aviso de privacidad obligatorio, guardado por partes y cámara a pantalla completa. |
@@ -44,16 +45,15 @@ a entrar con su correo. Molesto una vez, nada más.
 
 ## Pendientes
 
-1. **Domicilio fiscal** para el aviso de privacidad. Ahorita dice "Ciudad de México,
-   México" y eso no basta. Se cambia en `wrangler.toml`, variable `DOMICILIO`.
-2. Que un abogado revise el aviso de privacidad.
-3. Borrar en Resend la llave `t101-portal` (Full access), creada por error. La buena
+1. Que un abogado revise el aviso de privacidad. Ojo: quien ya lo aceptó tiene
+   registrada la versión vieja (`2026-09-01`, la que iba sin domicilio) y el portal
+   no se lo vuelve a pedir. Si el abogado quiere que todos acepten la versión con
+   domicilio, hay que borrar los renglones de la tabla `consentimientos`.
+2. Borrar en Resend la llave `t101-portal` (Full access), creada por error. La buena
    es `t101-portal-envio`.
-4. Rotar el token de Cloudflare: se pegó en un chat.
-5. **Cambiar la clave del panel.** Estuvo escrita en este archivo, dentro del
+3. Rotar el token de Cloudflare: se pegó en un chat.
+4. **Cambiar la clave del panel.** Estuvo escrita en este archivo, dentro del
    repositorio; ya se quitó, pero sigue en el historial de GitHub. Se cambia en el
    secreto `CLAVE_ADMIN`, se dispara el workflow a mano y se actualiza `llaves.env`.
    Aprovechar para poner una larga.
-6. Prueba con un trabajador de verdad antes de repartir la liga.
-7. Decidir el **domicilio fiscal** (pendiente 1) — es lo único que frena cerrar el
-   aviso de privacidad.
+5. Prueba con un trabajador de verdad antes de repartir la liga.
