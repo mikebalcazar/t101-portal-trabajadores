@@ -341,22 +341,64 @@ function pintarDocumentos() {
       <div class="marca">${listo ? '✓' : (def.obligatorio ? '!' : '+')}</div>
       <div class="info">
         <b>${def.nombre}${def.obligatorio ? '' : ' <span class="opc" style="font-weight:500;color:var(--tenue)">(opcional)</span>'}</b>
-        <small>${listo ? mios.map((m)=>m.etiqueta||m.nombre_archivo).join(' · ') : def.pista}</small>
+        <small class="pista"></small>
+        <div class="archivos"></div>
       </div>
       <div class="acciones"></div>`;
-    const acc = fila.querySelector('.acciones');
-    if (listo) {
-      for (const m of mios) {
-        const ver = document.createElement('a');
-        ver.className = 'btn suave chico'; ver.textContent = 'Ver';
-        ver.href = `/api/docs/${m.id}/archivo`; ver.target = '_blank'; ver.rel = 'noopener';
-        acc.appendChild(ver);
-        const bo = document.createElement('button');
-        bo.className = 'btn peligro chico'; bo.textContent = '✕';
-        bo.title = 'Quitar'; bo.onclick = () => borrarDoc(m.id);
-        acc.appendChild(bo);
-      }
+
+    // La pista se queda siempre visible, entera y en las líneas que necesite.
+    // Antes se recortaba con puntos suspensivos y en el celular no se alcanzaba
+    // a leer justo la parte que dice qué hay que subir.
+    const pista = fila.querySelector('.pista');
+    pista.textContent = def.pista;
+
+    // Y encima, tocando la tarjeta se abre el recuadro con todo grande: el
+    // nombre del documento, la indicación completa y los archivos que ya subió,
+    // con su nombre entero. En teléfono vertical la letra chica cuesta trabajo
+    // aunque quepa, y hay quien trae la pantalla rayada o los lentes en el coche.
+    const info = fila.querySelector('.info');
+    info.classList.add('tocable');
+    info.setAttribute('role', 'button');
+    info.setAttribute('tabindex', '0');
+    info.title = 'Toca para ver la indicación completa';
+    const abre = (e) => {
+      // Si tocó un botón o una liga de adentro, esa manda.
+      if (e.target.closest('a, button')) return;
+      abrirDescripcion(def, mios);
+    };
+    info.addEventListener('click', abre);
+    info.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirDescripcion(def, mios); }
+    });
+
+    // Cada archivo en su propio renglón, con su nombre y sus botones. Cuando
+    // alguien sube tres DC-3 ya no queda una torre de botones sin saber cuál es
+    // cuál. El nombre va con textContent: los nombres los pone quien sube el
+    // archivo y no tienen por qué acabar interpretados como HTML.
+    const cajaArchivos = fila.querySelector('.archivos');
+    for (const m of mios) {
+      const renglon = document.createElement('div');
+      renglon.className = 'archivo';
+
+      const nom = document.createElement('span');
+      nom.className = 'nombre';
+      nom.textContent = m.etiqueta || m.nombre_archivo;
+      nom.title = m.etiqueta || m.nombre_archivo;
+      renglon.appendChild(nom);
+
+      const ver = document.createElement('a');
+      ver.className = 'btn suave chico'; ver.textContent = 'Ver';
+      ver.href = `/api/docs/${m.id}/archivo`; ver.target = '_blank'; ver.rel = 'noopener';
+      renglon.appendChild(ver);
+
+      const bo = document.createElement('button');
+      bo.className = 'btn peligro chico'; bo.textContent = '✕';
+      bo.title = 'Quitar este archivo'; bo.onclick = () => borrarDoc(m.id);
+      renglon.appendChild(bo);
+
+      cajaArchivos.appendChild(renglon);
     }
+    const acc = fila.querySelector('.acciones');
     if (!listo || def.multiple) {
       const foto = document.createElement('button');
       foto.className = 'btn ' + (listo ? 'suave' : 'primario') + ' chico';
@@ -380,6 +422,64 @@ function pintarDocumentos() {
       acc.appendChild(sub);
     }
     cont.appendChild(fila);
+  }
+  abrirNombresLargos(cont);
+}
+
+/* ─────────── recuadro con la indicación completa ─────────── */
+
+function abrirDescripcion(def, mios) {
+  $('#desc-titulo').textContent = def.nombre + (def.obligatorio ? '' : ' (opcional)');
+  $('#desc-texto').textContent = def.pista;
+
+  const caja = $('#desc-archivos');
+  caja.innerHTML = '';
+  if (mios.length) {
+    const rotulo = document.createElement('p');
+    rotulo.className = 'rotulo';
+    rotulo.textContent = mios.length === 1 ? 'Ya subiste:' : `Ya subiste ${mios.length} archivos:`;
+    caja.appendChild(rotulo);
+    for (const m of mios) {
+      const li = document.createElement('div');
+      li.className = 'uno';
+      li.textContent = m.etiqueta || m.nombre_archivo;   // texto, nunca HTML
+      caja.appendChild(li);
+    }
+  } else if (def.obligatorio) {
+    const falta = document.createElement('p');
+    falta.className = 'rotulo';
+    falta.textContent = 'Este documento todavía te falta.';
+    caja.appendChild(falta);
+  }
+
+  $('#modal-desc').classList.remove('oculto');
+  $('#desc-cerrar').focus();
+}
+
+function cerrarDescripcion() { $('#modal-desc').classList.add('oculto'); }
+
+$('#desc-cerrar').addEventListener('click', cerrarDescripcion);
+$('#modal-desc').addEventListener('click', (e) => { if (e.target.id === 'modal-desc') cerrarDescripcion(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('#modal-desc').classList.contains('oculto')) cerrarDescripcion();
+});
+
+// Un nombre de archivo puede ser larguísimo. Se recorta a dos renglones, pero
+// solo cuando de verdad no cabe: entonces se le pone "ver todo" y con un toque
+// se abre. Hay que medirlo ya pintado, porque depende del ancho de la pantalla.
+function abrirNombresLargos(cont) {
+  for (const nom of cont.querySelectorAll('.archivo .nombre')) {
+    nom.classList.add('recortado');
+    if (nom.scrollHeight <= nom.clientHeight + 1) { nom.classList.remove('recortado'); continue; }
+    const mas = document.createElement('button');
+    mas.type = 'button';
+    mas.className = 'ver-todo';
+    mas.textContent = 'ver todo';
+    mas.onclick = () => {
+      const abierto = nom.classList.toggle('recortado');
+      mas.textContent = abierto ? 'ver todo' : 'ver menos';
+    };
+    nom.after(mas);
   }
 }
 
@@ -716,8 +816,10 @@ async function guardar(parcial = false) {
   try {
     const r = await api('/api/yo', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(cuerpo) });
     estado.trabajador = r.trabajador; estado.faltantes = r.faltantes;
-    pintarErrores({});
+    pintarErrores(r.errores || {});
     actualizarProgreso();
+    // El servidor guardó lo demás pero no aceptó un dato repetido.
+    if (r.aviso) { aviso(r.aviso, 'mal'); return true; }
     if (!parcial) {
       aviso(r.faltantes.length
         ? `Guardamos tus datos y te mandamos un correo de confirmación. Todavía falta subir: <b>${r.faltantes.join(', ')}</b>.`

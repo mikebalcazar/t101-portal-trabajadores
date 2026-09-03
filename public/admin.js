@@ -9,6 +9,7 @@ const NOMBRES = {
 const ORDEN = ['foto','firma_bancaria','ine','ine_reverso','nss','csf','curp','caratula','dc3','otro'];
 
 let trabajadores = [];
+const elegidos = new Set();
 
 async function api(ruta, op = {}) {
   const r = await fetch(ruta, { credentials:'same-origin', ...op });
@@ -46,6 +47,31 @@ async function cargar() {
   const completos = trabajadores.filter((t) => t.estado === 'completo').length;
   $('#resumen').innerHTML = `<b>${trabajadores.length}</b> trabajadores registrados · <b>${completos}</b> con expediente completo · <b>${trabajadores.length - completos}</b> con pendientes.`;
   pintar();
+  cargarDuplicados();
+  cargarPapelera();
+}
+
+// El portal ya no deja guardar un dato repetido, pero esto muestra lo que haya
+// entrado antes de ese freno. Si no hay nada, la tarjeta ni se ve.
+async function cargarDuplicados() {
+  const caja = $('#duplicados');
+  const lista = $('#dup-lista');
+  try {
+    const d = await api('/api/admin/duplicados');
+    const grupos = d.duplicados || [];
+    if (!grupos.length) { caja.classList.add('oculto'); return; }
+    lista.innerHTML = grupos.map((g) => {
+      const quienes = g.trabajadores.map((t) => {
+        const nom = [t.apellido_paterno, t.apellido_materno, t.nombre].filter(Boolean).join(' ').trim();
+        return `<li>${esc(nom || '(sin nombre)')} · <span class="mono" style="font-size:12px">${esc(t.email)}</span>${t.folio ? ` · #${esc(t.folio)}` : ''}</li>`;
+      }).join('');
+      return `<div style="margin-top:14px">
+        <div>Mismo ${esc(g.nombre)}: <span class="mono"><b>${esc(g.valor)}</b></span></div>
+        <ul style="margin:6px 0 0 18px;color:var(--tenue)">${quienes}</ul>
+      </div>`;
+    }).join('');
+    caja.classList.remove('oculto');
+  } catch { caja.classList.add('oculto'); }
 }
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -56,7 +82,7 @@ function pintar() {
   cuerpo.innerHTML = '';
   const lista = trabajadores.filter((t) => !q || JSON.stringify(t).toLowerCase().includes(q));
   if (!lista.length) {
-    cuerpo.innerHTML = '<tr><td colspan="9" class="centrado" style="padding:30px;color:var(--tenue)">Sin resultados.</td></tr>';
+    cuerpo.innerHTML = '<tr><td colspan="10" class="centrado" style="padding:30px;color:var(--tenue)">Sin resultados.</td></tr>';
     return;
   }
   for (const t of lista) {
@@ -68,6 +94,7 @@ function pintar() {
     const falta = (t.faltantes || []).length;
     const tr = document.createElement('tr');
     tr.innerHTML = `
+      <td><input type="checkbox" class="palomita" data-id="${t.id}"${elegidos.has(t.id) ? ' checked' : ''}></td>
       <td class="mono">${t.folio ?? ''}</td>
       <td><b>${esc(t.apellido_paterno)} ${esc(t.apellido_materno)}</b><br><span style="color:var(--tenue)">${esc(t.nombre)}${t.puesto ? ' · ' + esc(t.puesto) : ''}</span></td>
       <td><span class="mono">${esc(t.celular)}</span><br><span style="color:var(--tenue);font-size:12px">${esc(t.email)}</span></td>
@@ -79,12 +106,149 @@ function pintar() {
       <td><button class="btn peligro chico" data-baja="${t.id}">Baja</button></td>`;
     cuerpo.appendChild(tr);
   }
+  cuerpo.querySelectorAll('.palomita').forEach((p) => p.addEventListener('change', () => {
+    if (p.checked) elegidos.add(p.dataset.id); else elegidos.delete(p.dataset.id);
+    contarElegidos();
+  }));
+  contarElegidos();
+
   cuerpo.querySelectorAll('[data-baja]').forEach((b) => b.addEventListener('click', async () => {
-    if (!confirm('Esto borra al trabajador Y todos sus documentos. No se puede deshacer. ¿Seguro?')) return;
-    await api(`/api/admin/trabajadores/${b.dataset.baja}`, { method:'DELETE' });
+    const t = trabajadores.find((x) => x.id === b.dataset.baja);
+    const quien = t ? `${t.apellido_paterno} ${t.apellido_materno} ${t.nombre}`.trim() : 'este trabajador';
+    if (!confirm(`¿Dar de baja a ${quien}?\n\nSe va a la papelera con todo y documentos. Ahí se queda 30 días, y en ese plazo lo puedes devolver. Cumplidos los 30 días se borra de verdad.`)) return;
+    b.disabled = true;
+    try { await api(`/api/admin/trabajadores/${b.dataset.baja}`, { method:'DELETE' }); }
+    catch (e) { alert(e.message); b.disabled = false; return; }
     await cargar();
   }));
 }
+
+/* ─────────── papelera ─────────── */
+
+async function cargarPapelera() {
+  const caja = $('#papelera');
+  const lista = $('#pap-lista');
+  try {
+    const d = await api('/api/admin/papelera');
+    const gente = d.papelera || [];
+    if (!gente.length) { caja.classList.add('oculto'); lista.innerHTML = ''; return; }
+    lista.innerHTML = gente.map((t) => {
+      const nom = [t.apellido_paterno, t.apellido_materno, t.nombre].filter(Boolean).join(' ').trim() || '(sin nombre)';
+      const dias = t.dias_restantes;
+      const urge = dias <= 5;
+      const cuando = dias === 0 ? 'se borra hoy'
+        : dias === 1 ? 'se borra mañana'
+        : `se borra en ${dias} días`;
+      return `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--linea, #e6e8ea)">
+        <div style="flex:1;min-width:200px">
+          <b>${esc(nom)}</b>${t.folio ? ` · <span class="mono" style="font-size:12px">#${esc(t.folio)}</span>` : ''}<br>
+          <span style="color:var(--tenue);font-size:12px">${esc(t.email)} · ${t.documentos} documento${t.documentos === 1 ? '' : 's'} guardado${t.documentos === 1 ? '' : 's'}</span>
+        </div>
+        <span style="font-size:12.5px;color:${urge ? 'var(--alerta)' : 'var(--tenue)'}">${esc(cuando)}</span>
+        <button class="btn suave chico" data-restaurar="${t.id}" data-nombre="${esc(nom)}">↩ Devolver</button>
+        <button class="btn peligro chico" data-purgar="${t.id}" data-nombre="${esc(nom)}">Borrar ya</button>
+      </div>`;
+    }).join('');
+    caja.classList.remove('oculto');
+
+    lista.querySelectorAll('[data-restaurar]').forEach((b) => b.addEventListener('click', async () => {
+      b.disabled = true;
+      try { await api(`/api/admin/papelera/${b.dataset.restaurar}/restaurar`, { method:'POST' }); }
+      catch (e) { alert(e.message); b.disabled = false; return; }
+      await cargar();
+    }));
+
+    lista.querySelectorAll('[data-purgar]').forEach((b) => b.addEventListener('click', async () => {
+      if (!confirm(`Borrar YA a ${b.dataset.nombre}, sin esperar los 30 días.\n\nSe van su expediente y todos sus documentos. Esto sí no se puede deshacer.`)) return;
+      b.disabled = true;
+      try { await api(`/api/admin/papelera/${b.dataset.purgar}`, { method:'DELETE' }); }
+      catch (e) { alert(e.message); b.disabled = false; return; }
+      await cargar();
+    }));
+  } catch { caja.classList.add('oculto'); }
+}
+
+/* ─────────── fichas en PDF ─────────── */
+
+function contarElegidos() {
+  // Alguien pudo quedar seleccionado y luego darse de baja: solo cuentan los que siguen.
+  const vivos = new Set(trabajadores.map((t) => t.id));
+  for (const id of [...elegidos]) if (!vivos.has(id)) elegidos.delete(id);
+
+  const n = elegidos.size;
+  $('#cuenta-sel').textContent = n === 0 ? 'Nadie seleccionado.'
+    : n === 1 ? '1 trabajador seleccionado.' : `${n} trabajadores seleccionados.`;
+  $('#btn-ficha').disabled = n === 0;
+  $('#btn-ficha').textContent = n > 1 ? `⬇ Descargar ${n} fichas PDF` : '⬇ Descargar ficha PDF';
+  const compartir = $('#btn-compartir');
+  compartir.disabled = n === 0;
+  compartir.classList.toggle('oculto', !puedeCompartir || n === 0);
+
+  const visibles = [...document.querySelectorAll('.palomita')];
+  const todos = $('#sel-todos');
+  todos.checked = visibles.length > 0 && visibles.every((p) => p.checked);
+  todos.indeterminate = !todos.checked && visibles.some((p) => p.checked);
+}
+
+$('#sel-todos').addEventListener('change', (e) => {
+  document.querySelectorAll('.palomita').forEach((p) => {
+    p.checked = e.target.checked;
+    if (p.checked) elegidos.add(p.dataset.id); else elegidos.delete(p.dataset.id);
+  });
+  contarElegidos();
+});
+
+// Si el teléfono sabe compartir archivos, mejor mandarla directo que bajarla.
+const puedeCompartir = !!(navigator.canShare && navigator.share);
+
+async function pedirFichas() {
+  const r = await fetch('/api/admin/fichas', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids: [...elegidos], banco: $('#con-banco').checked }),
+  });
+  if (!r.ok) {
+    let d = {}; try { d = await r.json(); } catch {}
+    throw new Error(d.error || 'No se pudo armar el PDF.');
+  }
+  const cd = r.headers.get('Content-Disposition') || '';
+  const m = /filename\*=UTF-8''([^;]+)/.exec(cd);
+  const nombre = m ? decodeURIComponent(m[1]) : 'Ficha Taller 101.pdf';
+  return { blob: await r.blob(), nombre };
+}
+
+$('#btn-ficha').addEventListener('click', async () => {
+  const b = $('#btn-ficha'); const txt = b.textContent;
+  b.disabled = true; b.textContent = 'Armando el PDF…';
+  try {
+    const { blob, nombre } = await pedirFichas();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nombre;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch (e) { alert(e.message); }
+  finally { b.disabled = false; b.textContent = txt; contarElegidos(); }
+});
+
+$('#btn-compartir').addEventListener('click', async () => {
+  const b = $('#btn-compartir'); const txt = b.textContent;
+  b.disabled = true; b.textContent = 'Armando el PDF…';
+  try {
+    const { blob, nombre } = await pedirFichas();
+    const archivo = new File([blob], nombre, { type: 'application/pdf' });
+    if (!navigator.canShare({ files: [archivo] })) {
+      alert('Este teléfono no deja compartir archivos desde el navegador. Usa el botón de descargar y mándalo desde ahí.');
+      return;
+    }
+    await navigator.share({ files: [archivo], title: nombre });
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;   // le picó cancelar, no es error
+    alert(e.message);
+  }
+  finally { b.disabled = false; b.textContent = txt; contarElegidos(); }
+});
 
 $('#btn-zip').addEventListener('click', async () => {
   const b = $('#btn-zip'); const txt = b.textContent;

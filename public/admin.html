@@ -43,10 +43,33 @@
     </div>
   </div>
 
+  <div class="tarjeta" id="caja-fichas">
+    <h2 style="margin-top:0">Fichas en PDF</h2>
+    <p class="ayuda">Palomea a quien quieras en la tabla y saca su ficha. Desde el celular se puede mandar directo por WhatsApp o correo.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px">
+      <button id="btn-ficha" class="btn primario" disabled>⬇ Descargar ficha PDF</button>
+      <button id="btn-compartir" class="btn suave oculto">📤 Enviar desde el celular</button>
+      <span id="cuenta-sel" style="color:var(--tenue)">Nadie seleccionado.</span>
+    </div>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;cursor:pointer">
+      <input type="checkbox" id="con-banco" style="margin-top:3px">
+      <span>Incluir <b>banco, CLABE y beneficiario</b><br>
+        <span class="ayuda">Apagado, la ficha no lleva la cuenta bancaria. Préndelo solo cuando la ficha va al contador o al banco.</span>
+      </span>
+    </label>
+  </div>
+
+  <div id="duplicados" class="tarjeta oculto" style="border-left:4px solid var(--alerta)">
+    <h2 style="margin-top:0">⚠ Datos repetidos</h2>
+    <p class="ayuda">Estos datos identifican a una sola persona, y aparecen en más de un expediente. Casi siempre es un error de dedo; si no, alguien se registró dos veces.</p>
+    <div id="dup-lista"></div>
+  </div>
+
   <div class="tabla-caja">
     <table>
       <thead>
         <tr>
+          <th style="width:28px"><input type="checkbox" id="sel-todos" title="Seleccionar todos"></th>
           <th>#</th><th>Trabajador</th><th>Contacto</th><th>NSS / CURP</th>
           <th>Banco</th><th>Emergencia</th><th>Documentos</th><th>Estado</th><th></th>
         </tr>
@@ -54,6 +77,12 @@
       <tbody id="cuerpo"></tbody>
     </table>
   </div>
+  <div id="papelera" class="tarjeta oculto">
+    <h2 style="margin-top:0">🗑 Papelera</h2>
+    <p class="ayuda">Quien se da de baja se queda aquí <b>30 días</b> por si fue un error. Pasados los 30, se borra de verdad con todos sus documentos y ya no hay vuelta atrás.</p>
+    <div id="pap-lista" style="margin-top:10px"></div>
+  </div>
+
   <p class="pie">Taller 101 · Portal de Trabajadores</p>
 </main>
 

@@ -27,3 +27,8 @@ RAZON_SOCIAL = "Taller 101"
 DOMICILIO = "Ciudad de México, México"
 CORREO_PRIVACIDAD = "mike@forespot.com"
 AVISO_VERSION = "2026-09-01"
+
+# Barrido diario de la papelera: a las 4:00 UTC (10 u 11 de la noche en el centro
+# de México, según el horario). Borra de verdad lo que ya cumplió 30 días.
+[triggers]
+crons = ["0 4 * * *"]

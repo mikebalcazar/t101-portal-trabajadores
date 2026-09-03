@@ -60,3 +60,25 @@ CREATE TABLE IF NOT EXISTS consentimientos (
   version       TEXT NOT NULL,
   aceptado_en   TEXT NOT NULL
 );
+
+-- Freno contra la adivinación de la clave de administración. Un renglón por
+-- dirección de internet: los fallos seguidos, cuántas veces ya se le castigó
+-- (para que cada bloqueo dure más que el anterior) y hasta cuándo dura el
+-- bloqueo vigente, en segundos desde 1970.
+CREATE TABLE IF NOT EXISTS intentos_admin (
+  llave           TEXT PRIMARY KEY,
+  fallos          INTEGER NOT NULL DEFAULT 0,
+  castigos        INTEGER NOT NULL DEFAULT 0,
+  bloqueado_hasta INTEGER NOT NULL DEFAULT 0,
+  visto_en        INTEGER NOT NULL DEFAULT 0
+);
+
+-- Papelera. Dar de baja a alguien no borra nada: se apunta aquí y su expediente
+-- deja de aparecer en el panel, en el CSV, en el ZIP y en las fichas. A los 30
+-- días se borra de verdad, con todo y documentos. Antes de eso se puede
+-- restaurar, o borrar de inmediato si así se decide.
+CREATE TABLE IF NOT EXISTS papelera (
+  trabajador_id TEXT PRIMARY KEY,
+  borrado_en    TEXT NOT NULL,   -- ISO, para mostrarlo
+  borra_el      INTEGER NOT NULL -- segundos desde 1970: cuándo toca borrar de verdad
+);

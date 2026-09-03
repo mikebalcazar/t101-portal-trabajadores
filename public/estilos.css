@@ -110,8 +110,26 @@ input.mal{border-color:var(--alerta); background:#fdf6f4}
 .doc.listo .marca{background:#dff3e5;color:var(--ok)}
 .doc .info{flex:1;min-width:0}
 .doc .info b{display:block;font-size:14.5px}
-.doc .info small{color:var(--tenue);font-size:12.5px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc .info small.pista{
+  color:var(--tenue); font-size:12.5px; display:block;
+  line-height:1.35; margin-top:2px; overflow-wrap:anywhere;
+}
 .doc .acciones{display:flex;gap:6px;flex:0 0 auto}
+
+/* Cada archivo subido, en su renglón */
+.doc .archivos{margin-top:7px; display:flex; flex-direction:column; gap:6px}
+.doc .archivo{display:flex; align-items:center; gap:6px; flex-wrap:wrap}
+.doc .archivo .nombre{
+  flex:1 1 140px; min-width:0; font-size:12.5px; color:var(--tinta);
+  line-height:1.35; overflow-wrap:anywhere;
+}
+.doc .archivo .nombre.recortado{
+  display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden;
+}
+.ver-todo{
+  border:0; background:none; padding:0; cursor:pointer;
+  color:var(--marca); font-size:12px; text-decoration:underline; flex:0 0 auto;
+}
 .oculto{display:none !important}
 
 /* ── foto ── */
@@ -135,6 +153,30 @@ video.foto-vista{object-fit:cover}
 .modal .caja{
   background:#fff; border-radius:14px; width:100%; max-width:560px;
   max-height:92vh; overflow:auto; padding:20px;
+}
+
+/* ── recuadro con la indicación completa de un documento ── */
+.hoja-desc h3{margin:0 0 10px; font-size:19px; line-height:1.3; color:var(--tinta)}
+.hoja-desc p{margin:0; font-size:16px; line-height:1.55; color:var(--tinta)}
+.hoja-desc .desc-archivos{margin-top:16px}
+.hoja-desc .rotulo{font-size:13.5px; color:var(--tenue); margin:0 0 6px}
+.hoja-desc .uno{
+  font-size:14.5px; line-height:1.45; color:var(--tinta);
+  background:#f4f7f9; border-radius:8px; padding:9px 11px; margin-bottom:6px;
+  overflow-wrap:anywhere;
+}
+
+/* La tarjeta se puede tocar para abrir ese recuadro. En teléfono vertical se
+   marca con una flechita, para que se note que hay algo que tocar; en pantalla
+   ancha basta con el cursor, ahí el texto ya se lee sin problema. */
+.doc .info.tocable{cursor:pointer}
+@media (orientation: portrait) and (max-width:760px){
+  .doc .info.tocable{position:relative; padding-right:16px}
+  .doc .info.tocable::after{
+    content:'⌄'; position:absolute; right:0; top:0;
+    color:var(--marca); font-size:15px; line-height:1;
+  }
+  .doc .info.tocable:active{opacity:.6}
 }
 
 /* ── avisos ── */
@@ -171,9 +213,13 @@ td .btn.chico{padding:5px 9px;font-size:12.5px}
   .barra{padding:11px 14px}
   .barra .logo{font-size:15px}
   .barra .der #quien{display:none}
-  .doc{padding:11px 12px;gap:9px}
+  .doc{padding:11px 12px;gap:9px; align-items:flex-start; flex-wrap:wrap}
+  .doc .marca{margin-top:1px}
   .doc .info b{font-size:14px;line-height:1.3}
-  .doc .acciones{flex-direction:column}
+  /* En el celular los botones bajan a su propio renglón, alineados debajo del
+     texto. Apilados en columna hacían una torre altísima cuando había varios
+     archivos, y la tarjeta se veía rota. */
+  .doc .acciones{flex-direction:row; flex-wrap:wrap; flex:1 1 100%; margin-left:43px; margin-top:2px}
   .tarjeta{padding:18px 16px}
 }
 

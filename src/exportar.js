@@ -38,7 +38,9 @@ export function carpetaDe(t) {
 
 async function leerTodo(env) {
   const { results: trabajadores } = await env.DB.prepare(
-    'SELECT * FROM trabajadores ORDER BY apellido_paterno, apellido_materno, nombre'
+    `SELECT * FROM trabajadores
+     WHERE id NOT IN (SELECT trabajador_id FROM papelera)
+     ORDER BY apellido_paterno, apellido_materno, nombre`
   ).all();
   const { results: docs } = await env.DB.prepare('SELECT * FROM documentos ORDER BY tipo, subido_en').all();
   const porTrab = {};
