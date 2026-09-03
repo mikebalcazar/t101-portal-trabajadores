@@ -4,6 +4,7 @@ Cada renglón es una versión publicada. La más reciente hasta arriba.
 
 | Fecha | Versión | Qué cambió |
 |---|---|---|
+| 2026-09-03 | 0.1.8 | **La descarga cambia de forma.** El PDF vuelve a llevar nada más la fotografía —una hoja por trabajador, todos en un solo archivo— y los documentos escaneados se bajan aparte: un ZIP por trabajador, con su nombre, con los archivos tal como los subió. Todo viene dentro de un ZIP. Con esto ya no importa si el documento es PDF, PNG o foto: se entrega completo. |
 | 2026-09-03 | 0.1.7 | **Acta de nacimiento** entra a los documentos obligatorios: quien ya estaba completo pasa a pendiente hasta que la suba. Y la ficha en PDF ahora **pega los documentos escaneados** en hojas aparte, dos por hoja, detrás de la ficha de su dueño. Solo se pegan los que son JPEG (lo que se sube con la cámara); un PDF del SAT no se puede pegar sin desarmarlo, así que se apunta por nombre al final de las hojas. |
 | 2026-09-03 | 0.1.6 | Cinco arreglos pedidos desde el celular: el letrero de "guardado" se quita solo a los 5 segundos; **la versión se ve siempre arriba a la derecha**; subir un archivo ya no avienta la pantalla hasta arriba; la ficha en PDF ya no lleva "entregados" ni "faltan"; y al descargar ficha **se palomea qué campos van** — casi nunca hace falta entregar todo. |
 | 2026-09-03 | 0.1.5 | **Domicilio fiscal en el aviso de privacidad**: 5 de Mayo 60, San Nicolás Totolapan, La Magdalena Contreras, C.P. 10900, Ciudad de México. El aviso pasa a la versión `2026-09-03`. |
@@ -59,7 +60,3 @@ a entrar con su correo. Molesto una vez, nada más.
    secreto `CLAVE_ADMIN`, se dispara el workflow a mano y se actualiza `llaves.env`.
    Aprovechar para poner una larga.
 5. Prueba con un trabajador de verdad antes de repartir la liga.
-6. **Pegar también los documentos que son PDF** en la ficha. Hoy solo se pegan
-   los JPEG; los PDF (los del SAT y el IMSS casi siempre lo son) se listan por
-   nombre. Meterlos de verdad pide una librería que desarme PDF ajenos dentro
-   del Worker, con lo que eso cuesta en peso y en tiempo de CPU. Falta decidirlo.

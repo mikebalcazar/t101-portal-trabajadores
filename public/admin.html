@@ -62,11 +62,15 @@
         <label><input type="checkbox" class="campo-ficha" data-campo="celular" checked> Celular</label>
         <label><input type="checkbox" class="campo-ficha" data-campo="email" checked> Correo</label>
         <label><input type="checkbox" class="campo-ficha" data-campo="emergencia" checked> Contacto de emergencia</label>
-        <label><input type="checkbox" class="campo-ficha" data-campo="documentos" checked> Documentos escaneados</label>
       </div>
-      <p class="ayuda" style="margin:6px 0 0">El nombre y el folio van siempre. Apaga lo que no haga falta: casi nunca se entrega todo.<br>
-        <b>Documentos escaneados</b> pega cada documento en hojas aparte, dos por hoja, detrás de su ficha. Con esto prendido saca tandas de 15 o menos.</p>
+      <p class="ayuda" style="margin:6px 0 0">El nombre y el folio van siempre. Apaga lo que no haga falta: casi nunca se entrega todo.</p>
     </div>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;cursor:pointer">
+      <input type="checkbox" id="con-documentos" style="margin-top:3px">
+      <span>Bajar también <b>los documentos escaneados</b><br>
+        <span class="ayuda">Se descarga un ZIP: adentro va el PDF con todas las fichas y, aparte, un ZIP por trabajador con sus documentos, con su nombre. Con esto prendido saca tandas de 15 o menos.</span>
+      </span>
+    </label>
     <label style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;cursor:pointer">
       <input type="checkbox" class="campo-ficha" data-campo="banco" id="con-banco" style="margin-top:3px">
       <span>Incluir <b>banco, CLABE y beneficiario</b><br>

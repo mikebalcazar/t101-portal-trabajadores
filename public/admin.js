@@ -179,7 +179,10 @@ function contarElegidos() {
   $('#cuenta-sel').textContent = n === 0 ? 'Nadie seleccionado.'
     : n === 1 ? '1 trabajador seleccionado.' : `${n} trabajadores seleccionados.`;
   $('#btn-ficha').disabled = n === 0;
-  $('#btn-ficha').textContent = n > 1 ? `⬇ Descargar ${n} fichas PDF` : '⬇ Descargar ficha PDF';
+  const zip = $('#con-documentos').checked;
+  $('#btn-ficha').textContent = zip
+    ? (n > 1 ? `⬇ Descargar ${n} fichas + documentos` : '⬇ Descargar ficha + documentos')
+    : (n > 1 ? `⬇ Descargar ${n} fichas PDF` : '⬇ Descargar ficha PDF');
   const compartir = $('#btn-compartir');
   compartir.disabled = n === 0;
   compartir.classList.toggle('oculto', !puedeCompartir || n === 0);
@@ -213,6 +216,7 @@ function ponerCampos(ids) {
 
 // Los datos bancarios nunca entran en un atajo: se prenden a mano, a propósito.
 $('#campos-minimo').addEventListener('click', () => ponerCampos(['nss']));
+$('#con-documentos').addEventListener('change', contarElegidos);
 $('#campos-todo').addEventListener('click', () => {
   ponerCampos([...document.querySelectorAll('.campo-ficha')].map((c) => c.dataset.campo).filter((x) => x !== 'banco'));
 });
@@ -222,7 +226,7 @@ async function pedirFichas() {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids: [...elegidos], campos: camposElegidos() }),
+    body: JSON.stringify({ ids: [...elegidos], campos: camposElegidos(), documentos: $('#con-documentos').checked }),
   });
   if (!r.ok) {
     let d = {}; try { d = await r.json(); } catch {}
@@ -230,13 +234,14 @@ async function pedirFichas() {
   }
   const cd = r.headers.get('Content-Disposition') || '';
   const m = /filename\*=UTF-8''([^;]+)/.exec(cd);
-  const nombre = m ? decodeURIComponent(m[1]) : 'Ficha Taller 101.pdf';
-  return { blob: await r.blob(), nombre };
+  const zip = $('#con-documentos').checked;
+  const nombre = m ? decodeURIComponent(m[1]) : (zip ? 'Fichas Taller 101.zip' : 'Ficha Taller 101.pdf');
+  return { blob: await r.blob(), nombre, tipo: zip ? 'application/zip' : 'application/pdf' };
 }
 
 $('#btn-ficha').addEventListener('click', async () => {
   const b = $('#btn-ficha'); const txt = b.textContent;
-  b.disabled = true; b.textContent = 'Armando el PDF…';
+  b.disabled = true; b.textContent = $('#con-documentos').checked ? 'Juntando todo…' : 'Armando el PDF…';
   try {
     const { blob, nombre } = await pedirFichas();
     const url = URL.createObjectURL(blob);
@@ -250,10 +255,10 @@ $('#btn-ficha').addEventListener('click', async () => {
 
 $('#btn-compartir').addEventListener('click', async () => {
   const b = $('#btn-compartir'); const txt = b.textContent;
-  b.disabled = true; b.textContent = 'Armando el PDF…';
+  b.disabled = true; b.textContent = $('#con-documentos').checked ? 'Juntando todo…' : 'Armando el PDF…';
   try {
-    const { blob, nombre } = await pedirFichas();
-    const archivo = new File([blob], nombre, { type: 'application/pdf' });
+    const { blob, nombre, tipo } = await pedirFichas();
+    const archivo = new File([blob], nombre, { type: tipo });
     if (!navigator.canShare({ files: [archivo] })) {
       alert('Este teléfono no deja compartir archivos desde el navegador. Usa el botón de descargar y mándalo desde ahí.');
       return;

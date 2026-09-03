@@ -76,6 +76,59 @@ export async function exportarCsv(env) {
   return armaCsv(trabajadores, porTrab);
 }
 
+// Los documentos de un trabajador, ya bajados de R2 y con el nombre con el que
+// se van a ver en la carpeta: "Acta de nacimiento.jpg", "Certificación DC-3 2.pdf".
+// Lo usan la exportación completa y el ZIP de fichas.
+export async function archivosDe(env, docs) {
+  const contenido = {};
+  const conteo = {};
+  for (const d of docs) {
+    const obj = await env.DOCS.get(d.llave);
+    if (!obj) continue;
+    const bytes = new Uint8Array(await obj.arrayBuffer());
+    const ext = EXT_DE_MIME[d.mime] || ((d.nombre_archivo || '').split('.').pop() || 'bin');
+    conteo[d.tipo] = (conteo[d.tipo] || 0) + 1;
+    const sufijo = conteo[d.tipo] > 1 ? ` ${conteo[d.tipo]}` : '';
+    const etiqueta = d.tipo === 'otro' && d.etiqueta ? limpiaNombre(d.etiqueta) : NOMBRES_DOC[d.tipo] || d.tipo;
+    contenido[`${limpiaNombre(etiqueta)}${sufijo}.${ext}`] = bytes;
+  }
+  return contenido;
+}
+
+// Descarga de fichas con documentos: un solo PDF con todas las fichas —una hoja
+// por trabajador— y, junto a él, un ZIP por trabajador con sus documentos tal
+// como los subió, cada uno con su nombre. Todo eso viaja dentro de un ZIP, que
+// es la única forma de bajar varios archivos de una sola vez.
+export async function armaZipFichas(env, gente, docsDe, pdfTodos, nombrePdf) {
+  const arbol = {};
+  const usados = new Set();
+  const sinNada = [];
+
+  arbol[nombrePdf] = pdfTodos;
+
+  for (const t of gente) {
+    const contenido = await archivosDe(env, await docsDe(t));
+    if (!Object.keys(contenido).length) { sinNada.push(carpetaDe(t)); continue; }
+
+    let nombre = carpetaDe(t);
+    let n = 2;
+    while (usados.has(nombre)) nombre = `${carpetaDe(t)} (${n++})`;
+    usados.add(nombre);
+    arbol[`${nombre}.zip`] = zipSync(contenido, { level: 0 });
+  }
+
+  arbol['LEEME.txt'] = strToU8('\ufeff' +
+    'TALLER 101 — Fichas de trabajadores\r\n\r\n' +
+    `"${nombrePdf}" trae una hoja por trabajador.\r\n` +
+    'Cada ZIP con nombre de persona trae los documentos que esa persona subió.\r\n' +
+    (sinNada.length ? `Sin documentos todavía: ${sinNada.join(', ')}.\r\n` : '') +
+    `Generado: ${new Date().toISOString()}\r\n`
+  );
+
+  // level 0 = sin recomprimir: los PDF, los JPG y los ZIP de adentro ya vienen comprimidos
+  return zipSync(arbol, { level: 0 });
+}
+
 export async function armaZip(env) {
   const { trabajadores, porTrab } = await leerTodo(env);
   const arbol = {};
@@ -87,19 +140,8 @@ export async function armaZip(env) {
     while (usadas.has(carpeta)) carpeta = `${carpetaDe(t)} (${n++})`;
     usadas.add(carpeta);
 
-    const contenido = {};
     const ds = porTrab[t.id] || [];
-    const conteo = {};
-    for (const d of ds) {
-      const obj = await env.DOCS.get(d.llave);
-      if (!obj) continue;
-      const bytes = new Uint8Array(await obj.arrayBuffer());
-      const ext = EXT_DE_MIME[d.mime] || (d.nombre_archivo.split('.').pop() || 'bin');
-      conteo[d.tipo] = (conteo[d.tipo] || 0) + 1;
-      const sufijo = conteo[d.tipo] > 1 ? ` ${conteo[d.tipo]}` : '';
-      const etiqueta = d.tipo === 'otro' && d.etiqueta ? limpiaNombre(d.etiqueta) : NOMBRES_DOC[d.tipo] || d.tipo;
-      contenido[`${limpiaNombre(etiqueta)}${sufijo}.${ext}`] = bytes;
-    }
+    const contenido = await archivosDe(env, ds);
 
     // Ficha de datos dentro de la carpeta del trabajador
     const ficha = COLUMNAS.map(([k, etq]) => `${etq}: ${t[k] ?? ''}`).join('\r\n');

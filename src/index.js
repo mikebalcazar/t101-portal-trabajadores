@@ -11,7 +11,7 @@ import {
   DOCS_OBLIGATORIOS, DOCS_OPCIONALES, NOMBRES_DOC,
 } from './validar.js';
 import { enviarCorreo, correoCodigo, correoConfirmacion, correoAvisoAdmin } from './correo.js';
-import { armaZip, exportarCsv } from './exportar.js';
+import { armaZip, exportarCsv, armaZipFichas } from './exportar.js';
 import { armaFichas, nombreArchivoFichas, CAMPOS_FICHA, CAMPOS_POR_DEFECTO } from './ficha.js';
 
 const app = new Hono();
@@ -533,15 +533,9 @@ app.post('/api/admin/salir', (c) => {
 // Los datos bancarios NO van por default. Van solo si quien exporta lo pide, para
 // que una ficha que se manda por WhatsApp no lleve la CLABE de nadie sin querer.
 const TOPE_FICHAS = 50;
-// Con los documentos pegados cada expediente son varias hojas y varios archivos
-// sacados de R2. De golpe salen tandas más chicas, y el PDF no pasa de este peso
-// en imágenes: lo que no quepa se apunta por nombre en vez de tirar la descarga.
+// Con los documentos, cada expediente son varios archivos sacados de R2 y metidos
+// en memoria para armar el ZIP. De golpe salen tandas más chicas.
 const TOPE_FICHAS_CON_DOCS = 15;
-const TOPE_BYTES_DOCS = 24 * 1024 * 1024;
-
-// Solo el JPEG se pega tal cual dentro de un PDF. Lo demás —el PDF del SAT, un
-// PNG— habría que desarmarlo, así que se apunta por nombre.
-const COMO_SE_LLAMA = { 'application/pdf': 'PDF', 'image/png': 'PNG', 'image/heic': 'HEIC', 'image/webp': 'WEBP' };
 
 const IDS_CAMPOS = new Set(CAMPOS_FICHA.map((x) => x.id));
 
@@ -557,13 +551,15 @@ app.post('/api/admin/fichas', exigeAdmin, async (c) => {
   if (cuerpo.banco === true && !campos.includes('banco')) campos.push('banco');
   const conBanco = campos.includes('banco');
 
-  const conDocs = campos.includes('documentos');
+  // Con documentos la descarga es un ZIP: adentro, el PDF con todas las fichas y
+  // un ZIP por trabajador con lo que subió. Sin documentos, el PDF pelón.
+  const conDocs = cuerpo.documentos === true;
   const tope = conDocs ? TOPE_FICHAS_CON_DOCS : TOPE_FICHAS;
 
   if (!pedidos.length) return err(c, 'Selecciona al menos un trabajador.', 400);
   if (pedidos.length > tope) {
     return err(c, conDocs
-      ? `Con los documentos pegados son muchas de golpe. Haz tandas de ${tope} o menos, o apaga "Documentos escaneados".`
+      ? `Con los documentos son muchos de golpe. Haz tandas de ${tope} o menos, o apaga "Documentos escaneados".`
       : `Son muchas de golpe. Haz tandas de ${tope} o menos.`, 400);
   }
 
@@ -575,34 +571,8 @@ app.post('/api/admin/fichas', exigeAdmin, async (c) => {
   const gente = results || [];
   if (!gente.length) return err(c, 'No encontré esos expedientes.', 404);
 
-  let gastado = 0;   // cuántos bytes de imágenes lleva ya este PDF
-
   for (const t of gente) {
     t.__foto = null;
-    t.__docs = [];
-    t.__docsAparte = [];
-
-    if (conDocs) {
-      const { results: suyos } = await c.env.DB.prepare(
-        'SELECT tipo, etiqueta, llave, mime FROM documentos WHERE trabajador_id = ? ORDER BY subido_en'
-      ).bind(t.id).all();
-      for (const d of suyos || []) {
-        const titulo = d.tipo === 'otro' && d.etiqueta ? d.etiqueta : (NOMBRES_DOC[d.tipo] || d.tipo);
-        if (d.mime !== 'image/jpeg') {
-          t.__docsAparte.push(`${titulo} (${COMO_SE_LLAMA[d.mime] || d.mime})`);
-          continue;
-        }
-        if (gastado >= TOPE_BYTES_DOCS) {
-          t.__docsAparte.push(`${titulo} (no cupo en este PDF)`);
-          continue;
-        }
-        const obj = await c.env.DOCS.get(d.llave);
-        if (!obj) { t.__docsAparte.push(`${titulo} (no se encontró el archivo)`); continue; }
-        const bytes = new Uint8Array(await obj.arrayBuffer());
-        gastado += bytes.length;
-        t.__docs.push({ titulo, bytes });
-      }
-    }
 
     // Si la ficha va sin fotografía, ni se busca: es un archivo menos que sacar
     // de R2 y una foto menos rodando en un PDF que no la necesita.
@@ -628,13 +598,30 @@ app.post('/api/admin/fichas', exigeAdmin, async (c) => {
     campos, fecha,
   });
 
-  const nombre = nombreArchivoFichas(gente, new Date().toISOString().slice(0, 10));
-  const simple = nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '');
-  await registra(c.env, 'admin', 'fichas_pdf', `${gente.length} ficha(s) con: ${campos.join(', ') || 'solo el nombre'}`);
+  const hoy = new Date().toISOString().slice(0, 10);
+  const nombrePdf = nombreArchivoFichas(gente, hoy);
 
-  return new Response(pdf, {
+  // Sin documentos se baja el PDF y ya. Con documentos, el PDF se mete en un ZIP
+  // junto con un ZIP por trabajador: es la única forma de bajar varios archivos
+  // de una sola vez desde el navegador.
+  const cuerpoArchivo = conDocs
+    ? await armaZipFichas(
+        c.env, gente,
+        (t) => c.env.DB.prepare(
+          'SELECT tipo, etiqueta, nombre_archivo, llave, mime FROM documentos WHERE trabajador_id = ? ORDER BY subido_en'
+        ).bind(t.id).all().then((r) => r.results || []),
+        pdf, nombrePdf,
+      )
+    : pdf;
+
+  const nombre = conDocs ? nombreArchivoFichas(gente, hoy, 'zip') : nombrePdf;
+  const simple = nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '');
+  await registra(c.env, 'admin', conDocs ? 'fichas_zip' : 'fichas_pdf',
+    `${gente.length} ficha(s) con: ${campos.join(', ') || 'solo el nombre'}${conDocs ? ' + documentos' : ''}`);
+
+  return new Response(cuerpoArchivo, {
     headers: {
-      'Content-Type': 'application/pdf',
+      'Content-Type': conDocs ? 'application/zip' : 'application/pdf',
       'Content-Disposition': `attachment; filename="${simple}"; filename*=UTF-8''${encodeURIComponent(nombre)}`,
       'Cache-Control': 'no-store',
     },
