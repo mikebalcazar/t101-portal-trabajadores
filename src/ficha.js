@@ -160,6 +160,27 @@ class Hoja {
   get contenido() { return this.ops.join('\n'); }
 }
 
+// Qué se puede meter en la ficha. El panel pinta una palomita por renglón de
+// esta lista y manda los ids que quedaron prendidos: casi nunca hace falta
+// entregar todo, muchas veces basta el nombre y el NSS. El nombre, el folio y
+// el sello del expediente van siempre: sin ellos la hoja no identifica a nadie.
+export const CAMPOS_FICHA = [
+  { id: 'foto',       nombre: 'Fotografía' },
+  { id: 'puesto',     nombre: 'Puesto' },
+  { id: 'curp',       nombre: 'CURP' },
+  { id: 'nss',        nombre: 'NSS' },
+  { id: 'rfc',        nombre: 'RFC' },
+  { id: 'celular',    nombre: 'Celular' },
+  { id: 'email',      nombre: 'Correo' },
+  { id: 'emergencia', nombre: 'Contacto de emergencia' },
+  { id: 'banco',      nombre: 'Banco, CLABE y beneficiario', delicado: true },
+];
+
+// Sin decir nada, la ficha va completa menos los datos bancarios: esos solo si
+// se piden a propósito, para que una ficha que se manda por WhatsApp no lleve
+// la cuenta de nadie sin querer.
+export const CAMPOS_POR_DEFECTO = CAMPOS_FICHA.filter((c) => !c.delicado).map((c) => c.id);
+
 const NADA = '—';
 const dato = (v) => { const t = String(v ?? '').trim(); return t || NADA; };
 
@@ -169,7 +190,9 @@ function nombreCompleto(t) {
 
 // Dibuja una ficha completa y devuelve la hoja lista.
 function dibujaFicha(t, opciones) {
-  const { empresa, conBanco, foto, docs, nombresDoc, fecha } = opciones;
+  const { empresa, campos, foto, fecha } = opciones;
+  const quiere = (id) => campos.has(id);
+  const conBanco = quiere('banco');
   const h = new Hoja();
   const izq = MARGEN;
   const der = A4.ancho - MARGEN;
@@ -187,19 +210,23 @@ function dibujaFicha(t, opciones) {
 
   // Nombre y foto
   let y = A4.alto - 140;
+  const conFoto = quiere('foto');
   const cajaFoto = { an: 108, al: 132 };
   const xFoto = der - cajaFoto.an;
-  const anchoNombre = anchoUtil - cajaFoto.an - 20;
+  // Sin fotografía, el nombre se lleva todo el ancho de la hoja.
+  const anchoNombre = conFoto ? anchoUtil - cajaFoto.an - 20 : anchoUtil;
 
   h.texto(izq, y, recorta(nombreCompleto(t), 20, anchoNombre, true), { tam: 20, negrita: true });
   y -= 18;
-  if (String(t.puesto || '').trim()) {
+  if (quiere('puesto') && String(t.puesto || '').trim()) {
     h.texto(izq, y, recorta(t.puesto, 11, anchoNombre), { tam: 11, color: TENUE });
     y -= 16;
   }
 
   const yFoto = A4.alto - 140 - cajaFoto.al + 14;
-  if (foto && foto.medidas) {
+  if (!conFoto) {
+    // nada que dibujar: la hoja sigue desde donde quedó el nombre
+  } else if (foto && foto.medidas) {
     // Se encaja dentro del recuadro sin deformar
     const escala = Math.min(cajaFoto.an / foto.medidas.ancho, cajaFoto.al / foto.medidas.alto);
     const an = foto.medidas.ancho * escala;
@@ -211,7 +238,7 @@ function dibujaFicha(t, opciones) {
     h.texto(xFoto + (cajaFoto.an - ancho(aviso, 9)) / 2, yFoto + cajaFoto.al / 2, aviso, { tam: 9, color: TENUE });
   }
 
-  y = Math.min(y, yFoto) - 26;
+  y = (conFoto ? Math.min(y, yFoto) : y) - 26;
 
   // Secciones de datos, en dos columnas
   const colAncho = (anchoUtil - 24) / 2;
@@ -237,34 +264,37 @@ function dibujaFicha(t, opciones) {
     y -= alto;
   };
 
-  seccion('Identificación');
-  par(['CURP', t.curp, true], ['NSS', t.nss, true]);
-  par(['RFC', t.rfc, true], null);
+  // Cada bloque se dibuja solo si quedó algo que poner en él: pidiendo nada más
+  // el NSS sale una hoja con el nombre y el NSS, no una llena de encabezados
+  // vacíos. Los renglones se acomodan de dos en dos, como estaban.
+  const bloque = (titulo, ...renglones) => {
+    const hay = renglones.filter(Boolean);
+    if (!hay.length) return;
+    seccion(titulo);
+    for (let i = 0; i < hay.length; i += 2) par(hay[i], hay[i + 1] || null);
+  };
 
-  seccion('Contacto');
-  par(['Celular', t.celular, true], ['Correo', t.email]);
+  bloque('Identificación',
+    quiere('curp') && ['CURP', t.curp, true],
+    quiere('nss') && ['NSS', t.nss, true],
+    quiere('rfc') && ['RFC', t.rfc, true]);
+
+  bloque('Contacto',
+    quiere('celular') && ['Celular', t.celular, true],
+    quiere('email') && ['Correo', t.email]);
 
   if (conBanco) {
-    seccion('Datos bancarios');
-    par(['Banco', t.banco], ['CLABE', t.clabe, true]);
-    par(['Beneficiario', t.beneficiario], null);
+    bloque('Datos bancarios',
+      ['Banco', t.banco],
+      ['CLABE', t.clabe, true],
+      ['Beneficiario', t.beneficiario]);
   }
 
-  seccion('Contacto de emergencia');
-  par(['Nombre', t.emerg_nombre], ['Teléfono', t.emerg_telefono, true]);
-  if (String(t.emerg_email || '').trim()) par(['Correo', t.emerg_email], null);
-
-  // Documentos
-  seccion('Documentos en el expediente');
-  const entregados = [...new Set((docs || []).map((d) => nombresDoc[d.tipo] || d.tipo))];
-  const faltan = (t.faltantes || []);
-  h.texto(izq, y, 'ENTREGADOS', { tam: 7.5, color: TENUE });
-  h.texto(izq, y - 13, recorta(entregados.length ? entregados.join(', ') : 'Ninguno todavía', 10, anchoUtil), { tam: 10 });
-  y -= 34;
-  if (faltan.length) {
-    h.texto(izq, y, 'FALTAN', { tam: 7.5, color: TENUE });
-    h.texto(izq, y - 13, recorta(faltan.join(', '), 10, anchoUtil), { tam: 10, color: [0.79, 0.41, 0.29] });
-    y -= 30;
+  if (quiere('emergencia')) {
+    bloque('Contacto de emergencia',
+      ['Nombre', t.emerg_nombre],
+      ['Teléfono', t.emerg_telefono, true],
+      String(t.emerg_email || '').trim() ? ['Correo', t.emerg_email] : null);
   }
 
   // Pie
@@ -283,9 +313,9 @@ function dibujaFicha(t, opciones) {
 
 export function armaFichas(trabajadores, opciones = {}) {
   const empresa = opciones.empresa || 'Taller 101';
-  const conBanco = !!opciones.conBanco;
-  const nombresDoc = opciones.nombresDoc || {};
   const fecha = opciones.fecha || new Date().toISOString().slice(0, 10);
+  // Sin lista de campos, la ficha sale como salía siempre.
+  const campos = new Set(opciones.campos || CAMPOS_POR_DEFECTO);
 
   const doc = new Documento();
   doc.crudo('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
@@ -303,8 +333,7 @@ export function armaFichas(trabajadores, opciones = {}) {
       if (medidas) recurso = { nombre: `Im${siguiente}`, id: siguiente++, bytes: foto.bytes, medidas };
     }
     const contenido = dibujaFicha(t, {
-      empresa, conBanco, fecha, nombresDoc,
-      docs: t.documentos || [],
+      empresa, campos, fecha,
       foto: recurso ? { nombre: recurso.nombre, medidas: recurso.medidas } : (foto ? undefined : null),
     }).contenido;
     hojas.push({ pagina: siguiente++, flujo: siguiente++, contenido, recurso });

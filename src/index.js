@@ -12,7 +12,7 @@ import {
 } from './validar.js';
 import { enviarCorreo, correoCodigo, correoConfirmacion, correoAvisoAdmin } from './correo.js';
 import { armaZip, exportarCsv } from './exportar.js';
-import { armaFichas, nombreArchivoFichas } from './ficha.js';
+import { armaFichas, nombreArchivoFichas, CAMPOS_FICHA, CAMPOS_POR_DEFECTO } from './ficha.js';
 
 const app = new Hono();
 
@@ -534,10 +534,19 @@ app.post('/api/admin/salir', (c) => {
 // que una ficha que se manda por WhatsApp no lleve la CLABE de nadie sin querer.
 const TOPE_FICHAS = 50;
 
+const IDS_CAMPOS = new Set(CAMPOS_FICHA.map((x) => x.id));
+
 app.post('/api/admin/fichas', exigeAdmin, async (c) => {
   const cuerpo = await c.req.json().catch(() => ({}));
   const pedidos = Array.isArray(cuerpo.ids) ? cuerpo.ids.filter((x) => typeof x === 'string' && x) : [];
-  const conBanco = cuerpo.banco === true;
+
+  // Qué campos van en la hoja. Si no mandan lista, la ficha sale completa menos
+  // los datos bancarios, como salía antes. `banco: true` se sigue entendiendo.
+  const campos = Array.isArray(cuerpo.campos)
+    ? cuerpo.campos.filter((x) => IDS_CAMPOS.has(x))
+    : [...CAMPOS_POR_DEFECTO];
+  if (cuerpo.banco === true && !campos.includes('banco')) campos.push('banco');
+  const conBanco = campos.includes('banco');
 
   if (!pedidos.length) return err(c, 'Selecciona al menos un trabajador.', 400);
   if (pedidos.length > TOPE_FICHAS) {
@@ -553,11 +562,10 @@ app.post('/api/admin/fichas', exigeAdmin, async (c) => {
   if (!gente.length) return err(c, 'No encontré esos expedientes.', 404);
 
   for (const t of gente) {
-    const docs = await documentosDe(c.env, t.id);
-    t.documentos = docs;
-    t.faltantes = faltantesDe(docs);
     t.__foto = null;
-    const foto = await c.env.DB.prepare(
+    // Si la ficha va sin fotografía, ni se busca: es un archivo menos que sacar
+    // de R2 y una foto menos rodando en un PDF que no la necesita.
+    const foto = !campos.includes('foto') ? null : await c.env.DB.prepare(
       "SELECT llave, mime FROM documentos WHERE trabajador_id = ? AND tipo = 'foto' ORDER BY subido_en DESC LIMIT 1"
     ).bind(t.id).first();
     if (foto) {
@@ -576,12 +584,12 @@ app.post('/api/admin/fichas', exigeAdmin, async (c) => {
   const fecha = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
   const pdf = armaFichas(gente, {
     empresa: c.env.EMPRESA || 'Taller 101',
-    conBanco, fecha, nombresDoc: NOMBRES_DOC,
+    campos, fecha,
   });
 
   const nombre = nombreArchivoFichas(gente, new Date().toISOString().slice(0, 10));
   const simple = nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '');
-  await registra(c.env, 'admin', 'fichas_pdf', `${gente.length} ficha(s)${conBanco ? ' con datos bancarios' : ''}`);
+  await registra(c.env, 'admin', 'fichas_pdf', `${gente.length} ficha(s) con: ${campos.join(', ') || 'solo el nombre'}`);
 
   return new Response(pdf, {
     headers: {
@@ -724,6 +732,7 @@ app.get('/api/config', (c) => c.json({
   domicilio: c.env.DOMICILIO || '',
   correo_privacidad: c.env.CORREO_PRIVACIDAD || c.env.CORREO_AVISOS || '',
   aviso_version: c.env.AVISO_VERSION || '1',
+  version: c.env.PORTAL_VERSION || '',
 }));
 
 // ─────────────────────────── estáticos ───────────────────────────

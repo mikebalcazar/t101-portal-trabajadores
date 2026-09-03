@@ -31,11 +31,19 @@ async function api(ruta, opciones = {}) {
   return datos;
 }
 
-function aviso(texto, clase = 'info') {
+let avisoTemporizador = null;
+
+// `mover` en falso deja el letrero donde está sin arrastrar la pantalla. Se usa
+// al subir archivos: el trabajador está viendo su documento y no hay por qué
+// mandarlo hasta arriba.
+function aviso(texto, clase = 'info', mover = true) {
   const caja = $('#aviso-global');
   caja.innerHTML = `<div class="aviso ${clase}" style="margin:14px 0 0">${texto}</div>`;
-  if (clase === 'bien') setTimeout(() => { if (caja.textContent.includes(texto.replace(/<[^>]+>/g,'').slice(0,20))) caja.innerHTML=''; }, 9000);
-  caja.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  clearTimeout(avisoTemporizador);
+  // Los avisos de que algo salió bien ya cumplieron a los 5 segundos; de ahí en
+  // adelante nada más tapan pantalla. Los errores se quedan hasta el siguiente.
+  if (clase === 'bien') avisoTemporizador = setTimeout(() => { caja.innerHTML = ''; }, 5000);
+  if (mover) caja.scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
 
 function ocupado(btn, si, textoOriginal) {
@@ -525,7 +533,7 @@ function pedirArchivo(def) {
 
 async function subir(tipo, archivo, etiqueta = '') {
   if (archivo.size > 10 * 1024 * 1024) { aviso('Ese archivo pesa más de 10 MB. Toma la foto en menor calidad.', 'mal'); return; }
-  aviso('Subiendo <b>' + (etiqueta || tipo) + '</b>…', 'info');
+  aviso('Subiendo <b>' + (etiqueta || tipo) + '</b>…', 'info', false);
   const fd = new FormData();
   fd.append('tipo', tipo);
   fd.append('etiqueta', etiqueta);
@@ -535,7 +543,7 @@ async function subir(tipo, archivo, etiqueta = '') {
     estado.documentos = r.documentos; estado.faltantes = r.faltantes;
     pintarDocumentos(); pintarFoto(); pintarFirma(); actualizarProgreso();
     if (cambiosPendientes) await guardarAvance();
-    aviso('Listo, se guardó.', 'bien');
+    aviso('Listo, se guardó.', 'bien', false);
   } catch (e) { aviso(e.message, 'mal'); }
 }
 
@@ -865,9 +873,16 @@ async function guardar(parcial = false) {
 
 let temporizadorGuardado = null, cambiosPendientes = false, guardandoAvance = false;
 
+let marcaTemporizador = null;
+
 function marcaGuardado(texto, clase = '') {
   const p = $('#pista-guardado');
-  if (p) p.innerHTML = `<span class="marca-guardado ${clase}">${texto}</span>`;
+  if (!p) return;
+  p.innerHTML = `<span class="marca-guardado ${clase}">${texto}</span>`;
+  clearTimeout(marcaTemporizador);
+  // "Escribiendo…" y "Guardando…" tienen que verse mientras pasan. El
+  // "✓ Guardado" no: a los 5 segundos se quita y le devuelve la pantalla.
+  if (!clase) marcaTemporizador = setTimeout(() => { p.innerHTML = ''; }, 5000);
 }
 
 function programarGuardado() {
@@ -926,7 +941,20 @@ $('#f-clabe').addEventListener('blur', (e) => {
 
 /* ─────────── arranque ─────────── */
 
+// La versión se pinta antes que nada y se queda arriba a la derecha todo el
+// tiempo: en la pantalla de acceso, en el aviso y mientras llena el formulario.
+// Así, si alguien reporta una falla, se sabe con qué versión la vio.
+async function pintarVersion() {
+  const caja = $('#version');
+  if (!caja) return;
+  try {
+    const c = await cargarConfig();
+    if (c && c.version) { caja.textContent = 'v' + c.version; caja.classList.remove('oculto'); }
+  } catch { /* si no se alcanza la configuración, mejor nada que un número inventado */ }
+}
+
 (async function arranque() {
+  pintarVersion();
   try { await abrirPanel(); }
   catch { /* sin sesión: se queda en la pantalla de acceso */ }
 })();

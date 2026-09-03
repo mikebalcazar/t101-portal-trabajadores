@@ -201,12 +201,28 @@ $('#sel-todos').addEventListener('change', (e) => {
 // Si el teléfono sabe compartir archivos, mejor mandarla directo que bajarla.
 const puedeCompartir = !!(navigator.canShare && navigator.share);
 
+// Qué campos van en la ficha. Casi nunca se entrega todo: muchas veces basta el
+// nombre y el NSS, o el nombre y la CURP. El nombre y el folio van siempre.
+function camposElegidos() {
+  return [...document.querySelectorAll('.campo-ficha')].filter((c) => c.checked).map((c) => c.dataset.campo);
+}
+
+function ponerCampos(ids) {
+  document.querySelectorAll('.campo-ficha').forEach((c) => { c.checked = ids.includes(c.dataset.campo); });
+}
+
+// Los datos bancarios nunca entran en un atajo: se prenden a mano, a propósito.
+$('#campos-minimo').addEventListener('click', () => ponerCampos(['nss']));
+$('#campos-todo').addEventListener('click', () => {
+  ponerCampos([...document.querySelectorAll('.campo-ficha')].map((c) => c.dataset.campo).filter((x) => x !== 'banco'));
+});
+
 async function pedirFichas() {
   const r = await fetch('/api/admin/fichas', {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids: [...elegidos], banco: $('#con-banco').checked }),
+    body: JSON.stringify({ ids: [...elegidos], campos: camposElegidos() }),
   });
   if (!r.ok) {
     let d = {}; try { d = await r.json(); } catch {}

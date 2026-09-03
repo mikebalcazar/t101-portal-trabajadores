@@ -51,8 +51,22 @@
       <button id="btn-compartir" class="btn suave oculto">📤 Enviar desde el celular</button>
       <span id="cuenta-sel" style="color:var(--tenue)">Nadie seleccionado.</span>
     </div>
+    <div class="campos-ficha">
+      <p class="rotulo-campos">Qué lleva la ficha <button type="button" id="campos-minimo" class="enlace">solo nombre y NSS</button> · <button type="button" id="campos-todo" class="enlace">todo</button></p>
+      <div class="palomitas-campos">
+        <label><input type="checkbox" class="campo-ficha" data-campo="foto" checked> Fotografía</label>
+        <label><input type="checkbox" class="campo-ficha" data-campo="puesto" checked> Puesto</label>
+        <label><input type="checkbox" class="campo-ficha" data-campo="curp" checked> CURP</label>
+        <label><input type="checkbox" class="campo-ficha" data-campo="nss" checked> NSS</label>
+        <label><input type="checkbox" class="campo-ficha" data-campo="rfc" checked> RFC</label>
+        <label><input type="checkbox" class="campo-ficha" data-campo="celular" checked> Celular</label>
+        <label><input type="checkbox" class="campo-ficha" data-campo="email" checked> Correo</label>
+        <label><input type="checkbox" class="campo-ficha" data-campo="emergencia" checked> Contacto de emergencia</label>
+      </div>
+      <p class="ayuda" style="margin:6px 0 0">El nombre y el folio van siempre. Apaga lo que no haga falta: casi nunca se entrega todo.</p>
+    </div>
     <label style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;cursor:pointer">
-      <input type="checkbox" id="con-banco" style="margin-top:3px">
+      <input type="checkbox" class="campo-ficha" data-campo="banco" id="con-banco" style="margin-top:3px">
       <span>Incluir <b>banco, CLABE y beneficiario</b><br>
         <span class="ayuda">Apagado, la ficha no lleva la cuenta bancaria. Préndelo solo cuando la ficha va al contador o al banco.</span>
       </span>
