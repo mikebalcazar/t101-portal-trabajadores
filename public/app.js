@@ -325,6 +325,30 @@ $$('[data-c]').forEach((el) => {
   el.addEventListener('blur', () => { if (cambiosPendientes) guardarAvance(); });
 });
 
+/* El contacto de emergencia con el mismo teléfono del trabajador no sirve de
+   nada: si a él le pasa algo, ese número es justo el que no contesta. El
+   servidor lo rechaza al guardar; aquí se avisa al momento para que no se
+   entere hasta el final. */
+const MSG_MISMO_TEL = 'Pon el teléfono de la otra persona, no el tuyo: si te pasa algo, tu propio celular es el que no va a contestar.';
+
+function revisarTelefonoEmergencia() {
+  const propio = soloNum($('#f-celular').value);
+  const otro = soloNum($('#f-emerg_telefono').value);
+  const caja = document.querySelector('[data-e="emerg_telefono"]');
+  const campo = $('#f-emerg_telefono');
+  if (propio && otro && propio === otro) {
+    caja.textContent = MSG_MISMO_TEL;
+    campo.classList.add('mal');
+  } else if (caja.textContent === MSG_MISMO_TEL) {
+    caja.textContent = '';
+    campo.classList.remove('mal');
+  }
+}
+
+['#f-celular', '#f-emerg_telefono'].forEach((sel) => {
+  $(sel).addEventListener('input', revisarTelefonoEmergencia);
+});
+
 /* ─────────── documentos ─────────── */
 
 function docsDe(tipo) { return estado.documentos.filter((d) => d.tipo === tipo); }

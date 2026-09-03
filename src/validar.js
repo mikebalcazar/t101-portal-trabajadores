@@ -58,7 +58,10 @@ export function revisaExpediente(d) {
 
   if (!t(d.emerg_nombre)) errores.emerg_nombre = 'Falta el nombre del contacto de emergencia.';
   const celE = soloDigitos(d.emerg_telefono);
+  // Un contacto de emergencia con el mismo teléfono del trabajador no sirve para
+  // nada: si a él le pasa algo, ese número es justo el que no va a contestar.
   if (celE.length < 10) errores.emerg_telefono = 'Teléfono de emergencia a 10 dígitos.';
+  else if (cel && celE === cel) errores.emerg_telefono = 'Pon el teléfono de la otra persona, no el tuyo: si te pasa algo, tu propio celular es el que no va a contestar.';
   const emailE = t(d.emerg_email);
   if (emailE && !RX.email.test(emailE)) errores.emerg_email = 'Correo del contacto de emergencia inválido.';
 

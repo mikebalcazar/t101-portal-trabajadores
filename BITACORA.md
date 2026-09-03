@@ -4,7 +4,8 @@ Cada renglón es una versión publicada. La más reciente hasta arriba.
 
 | Fecha | Versión | Qué cambió |
 |---|---|---|
-| 2026-09-02 | 0.1.3 | **Primer despliegue automático desde GitHub Actions.** La identificación se pide en dos fotos: frente y reverso, cada una obligatoria y con su propio botón. Lo que ya se había subido como "INE" cuenta como el frente. |
+| 2026-09-03 | 0.1.4 | El teléfono del contacto de emergencia ya no puede ser el mismo celular del trabajador: ese contacto no serviría de nada. Se avisa mientras escribe y el servidor lo rechaza al guardar. |
+| 2026-09-02 | 0.1.3 | **Primer despliegue automático desde GitHub Actions.** Además, en el mismo empujón: identificación en dos fotos (frente y reverso, cada una obligatoria); **fichas en PDF** de los trabajadores que se palomeen, con los datos bancarios aparte; **papelera de 30 días**, que aparta en vez de borrar y barre sola con el reloj de Cloudflare; **freno contra adivinar la clave de administración** (3 fallos y bloqueo de 15 min, 1 h, 4 h, 24 h, por dirección); **datos que no se repiten** entre expedientes (CURP, NSS, RFC, celular y correo); y la indicación de cada documento ya se lee completa en el celular, sin recortarse. |
 | 2026-09-01 | 0.1.2 | Aviso de privacidad obligatorio, guardado por partes y cámara a pantalla completa. |
 | 2026-09-01 | 0.1.0 | Primera publicación del portal. |
 
@@ -21,7 +22,7 @@ actualiza los secretos y comprueba que el portal responda.
 | Repositorio | https://github.com/mikebalcazar/t101-portal-trabajadores (privado) |
 | Portal | https://t101-portal.mike-929.workers.dev |
 | Administración | https://t101-portal.mike-929.workers.dev/admin |
-| Clave de admin | `formon-caoba-formon-98` |
+| Clave de admin | En `llaves.env` y en el secreto `CLAVE_ADMIN` del repositorio. **No se escribe aquí:** este archivo se sube a GitHub. |
 | Correos | Resend, desde `expedientes@envios.taller101.mx` |
 
 Para subir cambios desde esta computadora: doble clic en `SUBIR-A-GITHUB.bat`.
@@ -49,4 +50,10 @@ a entrar con su correo. Molesto una vez, nada más.
 3. Borrar en Resend la llave `t101-portal` (Full access), creada por error. La buena
    es `t101-portal-envio`.
 4. Rotar el token de Cloudflare: se pegó en un chat.
-5. Prueba con un trabajador de verdad antes de repartir la liga.
+5. **Cambiar la clave del panel.** Estuvo escrita en este archivo, dentro del
+   repositorio; ya se quitó, pero sigue en el historial de GitHub. Se cambia en el
+   secreto `CLAVE_ADMIN`, se dispara el workflow a mano y se actualiza `llaves.env`.
+   Aprovechar para poner una larga.
+6. Prueba con un trabajador de verdad antes de repartir la liga.
+7. Decidir el **domicilio fiscal** (pendiente 1) — es lo único que frena cerrar el
+   aviso de privacidad.
