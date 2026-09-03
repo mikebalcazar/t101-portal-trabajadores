@@ -87,7 +87,7 @@ export function revisaExpediente(d) {
 export const emailValido = (e) => RX.email.test(String(e || '').trim());
 
 // Documentos obligatorios del expediente
-export const DOCS_OBLIGATORIOS = ['foto', 'firma_bancaria', 'ine', 'ine_reverso', 'nss', 'csf', 'curp', 'caratula'];
+export const DOCS_OBLIGATORIOS = ['foto', 'firma_bancaria', 'ine', 'ine_reverso', 'acta', 'nss', 'csf', 'curp', 'caratula'];
 export const DOCS_OPCIONALES = ['dc3', 'otro'];
 
 export const NOMBRES_DOC = {
@@ -95,6 +95,7 @@ export const NOMBRES_DOC = {
   firma_bancaria: 'Datos bancarios firmados',
   ine: 'Identificación — frente',
   ine_reverso: 'Identificación — reverso',
+  acta: 'Acta de nacimiento',
   nss: 'Constancia NSS',
   csf: 'Cédula de Situación Fiscal',
   curp: 'CURP',

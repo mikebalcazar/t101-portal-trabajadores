@@ -10,6 +10,7 @@ const CAMPOS = ['nombre','apellido_paterno','apellido_materno','celular','puesto
 const DOCS = [
   { tipo:'ine',         nombre:'Identificación — FRENTE',  pista:'El lado de tu foto. Sin reflejos y que se lean las letras.', obligatorio:true },
   { tipo:'ine_reverso', nombre:'Identificación — REVERSO', pista:'El lado del código de barras. Si usas pasaporte, sube otra vez la hoja de datos.', obligatorio:true },
+  { tipo:'acta',     nombre:'Acta de nacimiento',           pista:'La copia certificada o la impresión del formato oficial en línea', obligatorio:true },
   { tipo:'nss',      nombre:'Constancia de NSS',            pista:'La que descargas del IMSS',          obligatorio:true },
   { tipo:'csf',      nombre:'Cédula de Situación Fiscal',   pista:'La constancia del SAT, actualizada', obligatorio:true },
   { tipo:'curp',     nombre:'CURP impresa',                 pista:'La versión con código QR',           obligatorio:true },

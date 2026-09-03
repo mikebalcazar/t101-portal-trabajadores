@@ -173,6 +173,7 @@ export const CAMPOS_FICHA = [
   { id: 'celular',    nombre: 'Celular' },
   { id: 'email',      nombre: 'Correo' },
   { id: 'emergencia', nombre: 'Contacto de emergencia' },
+  { id: 'documentos', nombre: 'Documentos escaneados (hojas aparte)' },
   { id: 'banco',      nombre: 'Banco, CLABE y beneficiario', delicado: true },
 ];
 
@@ -309,6 +310,70 @@ function dibujaFicha(t, opciones) {
   return h;
 }
 
+/* ── hojas con los documentos escaneados ── */
+
+// Los documentos van después de la ficha, dos por hoja, cada uno con su nombre
+// encima. Se pegan tal cual: el PDF sabe leer JPEG sin convertir nada, y lo que
+// se sube con la cámara siempre es JPEG. Lo que no sea JPEG —un PDF del SAT,
+// un PNG— no se puede pegar aquí sin desarmarlo, así que se apunta por nombre
+// al final, para que quien reciba la hoja sepa que existe y dónde buscarlo.
+const POR_HOJA = 2;
+
+function dibujaDocumentos(t, imagenes, faltaron, opciones) {
+  const { empresa, fecha } = opciones;
+  const izq = MARGEN;
+  const der = A4.ancho - MARGEN;
+  const anchoUtil = der - izq;
+  const arriba = A4.alto - 96;
+  const abajo = 74;
+  const altoSlot = (arriba - abajo) / POR_HOJA;
+
+  const tandas = [];
+  for (let i = 0; i < imagenes.length; i += POR_HOJA) tandas.push(imagenes.slice(i, i + POR_HOJA));
+  if (!tandas.length) tandas.push([]);          // sin imágenes, pero hay que listar lo que no cupo
+
+  const hojas = [];
+  tandas.forEach((tanda, indice) => {
+    const h = new Hoja();
+
+    // Encabezado: de quién son estas hojas, para que no se revuelvan
+    h.relleno(0, A4.alto - 72, A4.ancho, 72, [0.976, 0.98, 0.984]);
+    h.relleno(0, A4.alto - 76, A4.ancho, 4, AZUL);
+    h.texto(izq, A4.alto - 36, recorta(nombreCompleto(t), 14, anchoUtil - 150, true), { tam: 14, negrita: true });
+    h.texto(izq, A4.alto - 54, 'Documentos del expediente', { tam: 10, color: TENUE });
+    const cuenta = `Hoja ${indice + 1} de ${tandas.length}`;
+    h.texto(der - ancho(cuenta, 9), A4.alto - 54, cuenta, { tam: 9, color: TENUE });
+
+    tanda.forEach((img, i) => {
+      const yBase = abajo + (POR_HOJA - 1 - i) * altoSlot;
+      const alturaCaja = altoSlot - 30;
+      h.texto(izq, yBase + alturaCaja + 8, recorta(img.titulo.toUpperCase(), 8.5, anchoUtil, true), { tam: 8.5, negrita: true, color: AZUL });
+      h.caja(izq, yBase, anchoUtil, alturaCaja, [0.90, 0.91, 0.92]);
+      // Cada documento se encaja completo dentro de su recuadro, sin deformarlo
+      // ni recortarlo: un acta a la que le falta una esquina no sirve de nada.
+      const escala = Math.min(anchoUtil / img.medidas.ancho, alturaCaja / img.medidas.alto);
+      const an = img.medidas.ancho * escala;
+      const al = img.medidas.alto * escala;
+      h.imagen(img.nombre, izq + (anchoUtil - an) / 2, yBase + (alturaCaja - al) / 2, an, al);
+    });
+
+    // La lista de lo que no se pudo pegar va en la última hoja
+    if (indice === tandas.length - 1 && faltaron.length) {
+      h.texto(izq, abajo - 16, 'EN EL EXPEDIENTE, PERO NO SE PUEDEN PEGAR AQUÍ', { tam: 7.5, negrita: true, color: TENUE });
+      h.texto(izq, abajo - 28, recorta(faltaron.join(' · '), 8.5, anchoUtil), { tam: 8.5, color: TENUE });
+    }
+
+    const pieY = 40;
+    h.linea(izq, pieY + 16, der, pieY + 16);
+    h.texto(izq, pieY + 2, `${empresa} · ${nombreCompleto(t)} · ${fecha}`, { tam: 8, color: TENUE });
+    const nota = 'Documentos personales. Trátalos conforme al aviso de privacidad.';
+    h.texto(der - ancho(nota, 8), pieY + 2, nota, { tam: 8, color: TENUE });
+
+    hojas.push({ contenido: h.contenido, recursos: tanda });
+  });
+  return hojas;
+}
+
 /* ── el PDF completo ── */
 
 export function armaFichas(trabajadores, opciones = {}) {
@@ -324,19 +389,40 @@ export function armaFichas(trabajadores, opciones = {}) {
   const IDS = { catalogo: 1, paginas: 2, regular: 3, negrita: 4 };
   let siguiente = 5;
 
+  // Cada imagen que se pega es un objeto del PDF. Se apartan aquí para poder
+  // repartirlas: la fotografía va en la ficha y los documentos en sus hojas.
+  const apartaImagen = (bytes) => {
+    const medidas = medidasJpeg(bytes);
+    if (!medidas) return null;
+    const recurso = { nombre: `Im${siguiente}`, id: siguiente++, bytes, medidas };
+    return recurso;
+  };
+
   const hojas = [];
   for (const t of trabajadores) {
     const foto = t.__foto || null;
-    let recurso = null;
-    if (foto && foto.bytes) {
-      const medidas = medidasJpeg(foto.bytes);
-      if (medidas) recurso = { nombre: `Im${siguiente}`, id: siguiente++, bytes: foto.bytes, medidas };
-    }
+    const recurso = foto && foto.bytes ? apartaImagen(foto.bytes) : null;
     const contenido = dibujaFicha(t, {
       empresa, campos, fecha,
       foto: recurso ? { nombre: recurso.nombre, medidas: recurso.medidas } : (foto ? undefined : null),
     }).contenido;
-    hojas.push({ pagina: siguiente++, flujo: siguiente++, contenido, recurso });
+    hojas.push({ pagina: siguiente++, flujo: siguiente++, contenido, recursos: recurso ? [recurso] : [] });
+
+    if (!campos.has('documentos')) continue;
+
+    // Las hojas de documentos van pegadas a la ficha de su dueño, para que al
+    // imprimir o al mandar el PDF no se separen de ella.
+    const imagenes = [];
+    for (const d of t.__docs || []) {
+      const r = apartaImagen(d.bytes);
+      if (r) imagenes.push({ ...r, titulo: d.titulo });
+    }
+    const faltaron = t.__docsAparte || [];
+    if (!imagenes.length && !faltaron.length) continue;
+
+    for (const h of dibujaDocumentos(t, imagenes, faltaron, { empresa, fecha })) {
+      hojas.push({ pagina: siguiente++, flujo: siguiente++, contenido: h.contenido, recursos: h.recursos });
+    }
   }
 
   doc.abre(IDS.catalogo);
@@ -356,7 +442,9 @@ export function armaFichas(trabajadores, opciones = {}) {
   doc.cierra();
 
   for (const h of hojas) {
-    const xobj = h.recurso ? ` /XObject << /${h.recurso.nombre} ${h.recurso.id} 0 R >>` : '';
+    const xobj = h.recursos.length
+      ? ` /XObject << ${h.recursos.map((r) => `/${r.nombre} ${r.id} 0 R`).join(' ')} >>`
+      : '';
     doc.abre(h.pagina);
     doc.crudo(
       `<< /Type /Page /Parent ${IDS.paginas} 0 R /MediaBox [0 0 ${g(A4.ancho)} ${g(A4.alto)}] ` +
@@ -372,10 +460,9 @@ export function armaFichas(trabajadores, opciones = {}) {
     doc.crudo('\nendstream\n');
     doc.cierra();
 
-    if (h.recurso) {
-      const { medidas, bytes } = h.recurso;
+    for (const { medidas, bytes, id } of h.recursos) {
       const espacio = medidas.componentes === 1 ? '/DeviceGray' : medidas.componentes === 4 ? '/DeviceCMYK' : '/DeviceRGB';
-      doc.abre(h.recurso.id);
+      doc.abre(id);
       doc.crudo(
         `<< /Type /XObject /Subtype /Image /Width ${medidas.ancho} /Height ${medidas.alto} ` +
         `/ColorSpace ${espacio} /BitsPerComponent 8 /Filter /DCTDecode /Length ${bytes.length} >>\nstream\n`

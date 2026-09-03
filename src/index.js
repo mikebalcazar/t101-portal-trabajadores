@@ -533,6 +533,15 @@ app.post('/api/admin/salir', (c) => {
 // Los datos bancarios NO van por default. Van solo si quien exporta lo pide, para
 // que una ficha que se manda por WhatsApp no lleve la CLABE de nadie sin querer.
 const TOPE_FICHAS = 50;
+// Con los documentos pegados cada expediente son varias hojas y varios archivos
+// sacados de R2. De golpe salen tandas más chicas, y el PDF no pasa de este peso
+// en imágenes: lo que no quepa se apunta por nombre en vez de tirar la descarga.
+const TOPE_FICHAS_CON_DOCS = 15;
+const TOPE_BYTES_DOCS = 24 * 1024 * 1024;
+
+// Solo el JPEG se pega tal cual dentro de un PDF. Lo demás —el PDF del SAT, un
+// PNG— habría que desarmarlo, así que se apunta por nombre.
+const COMO_SE_LLAMA = { 'application/pdf': 'PDF', 'image/png': 'PNG', 'image/heic': 'HEIC', 'image/webp': 'WEBP' };
 
 const IDS_CAMPOS = new Set(CAMPOS_FICHA.map((x) => x.id));
 
@@ -548,9 +557,14 @@ app.post('/api/admin/fichas', exigeAdmin, async (c) => {
   if (cuerpo.banco === true && !campos.includes('banco')) campos.push('banco');
   const conBanco = campos.includes('banco');
 
+  const conDocs = campos.includes('documentos');
+  const tope = conDocs ? TOPE_FICHAS_CON_DOCS : TOPE_FICHAS;
+
   if (!pedidos.length) return err(c, 'Selecciona al menos un trabajador.', 400);
-  if (pedidos.length > TOPE_FICHAS) {
-    return err(c, `Son muchas de golpe. Haz tandas de ${TOPE_FICHAS} o menos.`, 400);
+  if (pedidos.length > tope) {
+    return err(c, conDocs
+      ? `Con los documentos pegados son muchas de golpe. Haz tandas de ${tope} o menos, o apaga "Documentos escaneados".`
+      : `Son muchas de golpe. Haz tandas de ${tope} o menos.`, 400);
   }
 
   const marcas = pedidos.map(() => '?').join(',');
@@ -561,8 +575,35 @@ app.post('/api/admin/fichas', exigeAdmin, async (c) => {
   const gente = results || [];
   if (!gente.length) return err(c, 'No encontré esos expedientes.', 404);
 
+  let gastado = 0;   // cuántos bytes de imágenes lleva ya este PDF
+
   for (const t of gente) {
     t.__foto = null;
+    t.__docs = [];
+    t.__docsAparte = [];
+
+    if (conDocs) {
+      const { results: suyos } = await c.env.DB.prepare(
+        'SELECT tipo, etiqueta, llave, mime FROM documentos WHERE trabajador_id = ? ORDER BY subido_en'
+      ).bind(t.id).all();
+      for (const d of suyos || []) {
+        const titulo = d.tipo === 'otro' && d.etiqueta ? d.etiqueta : (NOMBRES_DOC[d.tipo] || d.tipo);
+        if (d.mime !== 'image/jpeg') {
+          t.__docsAparte.push(`${titulo} (${COMO_SE_LLAMA[d.mime] || d.mime})`);
+          continue;
+        }
+        if (gastado >= TOPE_BYTES_DOCS) {
+          t.__docsAparte.push(`${titulo} (no cupo en este PDF)`);
+          continue;
+        }
+        const obj = await c.env.DOCS.get(d.llave);
+        if (!obj) { t.__docsAparte.push(`${titulo} (no se encontró el archivo)`); continue; }
+        const bytes = new Uint8Array(await obj.arrayBuffer());
+        gastado += bytes.length;
+        t.__docs.push({ titulo, bytes });
+      }
+    }
+
     // Si la ficha va sin fotografía, ni se busca: es un archivo menos que sacar
     // de R2 y una foto menos rodando en un PDF que no la necesita.
     const foto = !campos.includes('foto') ? null : await c.env.DB.prepare(
