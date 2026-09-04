@@ -293,6 +293,7 @@ function dibujaFicha(t, opciones) {
   if (quiere('emergencia')) {
     bloque('Contacto de emergencia',
       ['Nombre', t.emerg_nombre],
+      ['Parentesco', t.emerg_parentesco],
       ['Teléfono', t.emerg_telefono, true],
       String(t.emerg_email || '').trim() ? ['Correo', t.emerg_email] : null);
   }

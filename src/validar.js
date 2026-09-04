@@ -57,6 +57,8 @@ export function revisaExpediente(d) {
   if (!t(d.beneficiario)) errores.beneficiario = 'Escribe el nombre del beneficiario de la cuenta.';
 
   if (!t(d.emerg_nombre)) errores.emerg_nombre = 'Falta el nombre del contacto de emergencia.';
+  const parentesco = t(d.emerg_parentesco).slice(0, 40);
+  if (!parentesco) errores.emerg_parentesco = 'Di quién es esa persona para ti: madre, esposa, hermano…';
   const celE = soloDigitos(d.emerg_telefono);
   // Un contacto de emergencia con el mismo teléfono del trabajador no sirve para
   // nada: si a él le pasa algo, ese número es justo el que no va a contestar.
@@ -77,6 +79,7 @@ export function revisaExpediente(d) {
     clabe,
     beneficiario: t(d.beneficiario),
     emerg_nombre: t(d.emerg_nombre),
+    emerg_parentesco: parentesco,
     emerg_telefono: celE,
     emerg_email: emailE,
     puesto: t(d.puesto),

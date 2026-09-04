@@ -302,12 +302,12 @@ app.put('/api/yo', exigeTrabajador, exigeAviso, async (c) => {
 
   await c.env.DB.prepare(
     `UPDATE trabajadores SET nombre=?, apellido_paterno=?, apellido_materno=?, celular=?, nss=?, curp=?, rfc=?,
-     banco=?, clabe=?, beneficiario=?, emerg_nombre=?, emerg_telefono=?, emerg_email=?, puesto=?,
+     banco=?, clabe=?, beneficiario=?, emerg_nombre=?, emerg_parentesco=?, emerg_telefono=?, emerg_email=?, puesto=?,
      estado=?, actualizado_en=?, confirmado_en=COALESCE(confirmado_en, ?) WHERE id=?`
   ).bind(
     limpio.nombre, limpio.apellido_paterno, limpio.apellido_materno, limpio.celular, limpio.nss,
     limpio.curp, limpio.rfc, limpio.banco, limpio.clabe, limpio.beneficiario,
-    limpio.emerg_nombre, limpio.emerg_telefono, limpio.emerg_email, limpio.puesto,
+    limpio.emerg_nombre, limpio.emerg_parentesco, limpio.emerg_telefono, limpio.emerg_email, limpio.puesto,
     estado, ahora(), ok && !choques.length ? ahora() : null, s.id
   ).run();
 

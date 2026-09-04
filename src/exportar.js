@@ -18,6 +18,7 @@ const COLUMNAS = [
   ['clabe', 'CLABE'],
   ['beneficiario', 'Beneficiario'],
   ['emerg_nombre', 'Emergencia — nombre'],
+  ['emerg_parentesco', 'Emergencia — parentesco'],
   ['emerg_telefono', 'Emergencia — teléfono'],
   ['emerg_email', 'Emergencia — correo'],
   ['estado', 'Estado'],

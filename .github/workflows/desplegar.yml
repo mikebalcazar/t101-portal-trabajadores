@@ -37,6 +37,14 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: npx wrangler d1 execute t101-trabajadores --remote --file=./schema.sql --yes
 
+      # Lo que schema.sql no puede hacer: agregarle columnas a una tabla que ya
+      # existe. D1 lleva la cuenta de cuales ya corrieron, asi que esto se puede
+      # repetir en cada despliegue sin que pase nada.
+      - name: Aplicar los cambios a la base
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler d1 migrations apply t101-trabajadores --remote
+
       - name: Publicar
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

@@ -5,7 +5,7 @@ const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 
 const CAMPOS = ['nombre','apellido_paterno','apellido_materno','celular','puesto','nss','curp','rfc',
-  'banco','clabe','beneficiario','emerg_nombre','emerg_telefono','emerg_email'];
+  'banco','clabe','beneficiario','emerg_nombre','emerg_parentesco','emerg_telefono','emerg_email'];
 
 const DOCS = [
   { tipo:'ine',         nombre:'Identificación — FRENTE',  pista:'El lado de tu foto. Sin reflejos y que se lean las letras.', obligatorio:true },
@@ -140,7 +140,7 @@ guardar y usar los datos personales que captures en este portal.</p>
   <li>CURP, Número de Seguro Social (NSS) y RFC.</li>
   <li>Banco, CLABE y nombre del beneficiario de la cuenta donde te pagamos.</li>
   <li>Tu fotografía.</li>
-  <li>Nombre, teléfono y correo de tu contacto de emergencia.</li>
+  <li>Nombre, parentesco, teléfono y correo de tu contacto de emergencia.</li>
   <li>Copias de tu identificación, constancias del IMSS y del SAT, CURP, carátula del banco
       y, si aplica, tu certificación DC-3.</li>
 </ul>
@@ -311,7 +311,7 @@ function pintarErrores(errores = {}) {
 
 function actualizarProgreso() {
   const d = recolectar();
-  const obligatorios = ['nombre','apellido_paterno','apellido_materno','celular','nss','curp','banco','clabe','beneficiario','emerg_nombre','emerg_telefono'];
+  const obligatorios = ['nombre','apellido_paterno','apellido_materno','celular','nss','curp','banco','clabe','beneficiario','emerg_nombre','emerg_parentesco','emerg_telefono'];
   const llenos = obligatorios.filter((k) => d[k]).length;
   const docsObl = DOCS.filter((x) => x.obligatorio).length + 2; // + foto + firma
   const hay = new Set(estado.documentos.map((x) => x.tipo));

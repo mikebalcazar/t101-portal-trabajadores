@@ -4,6 +4,7 @@ Cada renglón es una versión publicada. La más reciente hasta arriba.
 
 | Fecha | Versión | Qué cambió |
 |---|---|---|
+| 2026-09-04 | 0.1.11 | **Parentesco del contacto de emergencia**, obligatorio: se escoge de una lista (madre, padre, esposa, hijo, hermano…). Sale en la ficha en PDF, en el CSV y en el panel, junto al nombre. Quien ya estaba completo pasa a pendiente hasta que lo indique. |
 | 2026-09-04 | 0.1.10 | **El panel de administración, para el celular.** La tabla de diez columnas deja de ser tabla en el teléfono: cada trabajador es una tarjeta con su nombre, su estado, sus documentos, el folio y la baja. La lista de lo que le falta se guarda detrás de un "Faltan 9" que se abre con un toque —también en computadora, donde ocupaba media columna—. Arriba, el buscador se sube al primer lugar y los botones de exportar se acomodan en un renglón. |
 | 2026-09-04 | 0.1.9 | **El celular, arreglado.** La tarjeta de botones se comía un tercio de la pantalla y tapaba el campo de abajo: ahora es una barra delgada de dos botones y nada queda escondido detrás. La barra de arriba cabe en un renglón. Las casillas heredaban `width:100%` de los campos de texto —cada palomita medía lo ancho de su tarjeta y empujaba su texto fuera de la pantalla—, y eso descomponía el panel entero. La tabla del panel deja ver en el teléfono solo lo que sirve para escoger y revisar. Los botones de subir documento ya miden lo que mide un dedo. |
 | 2026-09-03 | 0.1.8 | **La descarga cambia de forma.** El PDF vuelve a llevar nada más la fotografía —una hoja por trabajador, todos en un solo archivo— y los documentos escaneados se bajan aparte: un ZIP por trabajador, con su nombre, con los archivos tal como los subió. Todo viene dentro de un ZIP. Con esto ya no importa si el documento es PDF, PNG o foto: se entrega completo. |
@@ -47,6 +48,14 @@ a entrar con su correo. Molesto una vez, nada más.
 - Corrida de GitHub Actions en verde, 56 segundos.
 - El portal responde y trae las cuatro cosas: identificación en dos fotos, aviso de
   privacidad, guardado automático y cámara a pantalla completa.
+
+## Cambios a la base de datos
+
+`schema.sql` solo crea lo que no existe: una columna nueva sobre una tabla que
+ya está no se puede agregar desde ahí. Para eso está `migrations/`, un archivo
+por cambio; D1 lleva la cuenta de cuáles ya aplicó, así que el despliegue los
+corre en cada publicación sin repetirlos. El workflow hace las dos cosas:
+primero `schema.sql`, luego `d1 migrations apply`.
 
 ## Cómo se revisa el celular
 
