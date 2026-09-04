@@ -879,6 +879,7 @@ let marcaTemporizador = null;
 function marcaGuardado(texto, clase = '') {
   const p = $('#pista-guardado');
   if (!p) return;
+  p.classList.remove('inicial');
   p.innerHTML = `<span class="marca-guardado ${clase}">${texto}</span>`;
   clearTimeout(marcaTemporizador);
   // "Escribiendo…" y "Guardando…" tienen que verse mientras pasan. El
@@ -918,7 +919,7 @@ $('#btn-avance').addEventListener('click', async () => {
   const b = $('#btn-avance'); ocupado(b, true);
   cambiosPendientes = true;
   await guardarAvance();
-  ocupado(b, false, 'Guardar y seguir después');
+  ocupado(b, false);
   aviso('Guardado. Puedes cerrar e irte: cuando vuelvas, entra con tu mismo correo y sigues donde te quedaste.', 'bien');
 });
 
@@ -927,7 +928,7 @@ $('#btn-terminar').addEventListener('click', async () => {
   clearTimeout(temporizadorGuardado);
   const ok = await guardar(false);
   if (ok) cambiosPendientes = false;
-  ocupado(b, false, 'Ya terminé — revisar y enviar');
+  ocupado(b, false);
 });
 
 // Validación viva

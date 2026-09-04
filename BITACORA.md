@@ -4,6 +4,7 @@ Cada renglón es una versión publicada. La más reciente hasta arriba.
 
 | Fecha | Versión | Qué cambió |
 |---|---|---|
+| 2026-09-04 | 0.1.9 | **El celular, arreglado.** La tarjeta de botones se comía un tercio de la pantalla y tapaba el campo de abajo: ahora es una barra delgada de dos botones y nada queda escondido detrás. La barra de arriba cabe en un renglón. Las casillas heredaban `width:100%` de los campos de texto —cada palomita medía lo ancho de su tarjeta y empujaba su texto fuera de la pantalla—, y eso descomponía el panel entero. La tabla del panel deja ver en el teléfono solo lo que sirve para escoger y revisar. Los botones de subir documento ya miden lo que mide un dedo. |
 | 2026-09-03 | 0.1.8 | **La descarga cambia de forma.** El PDF vuelve a llevar nada más la fotografía —una hoja por trabajador, todos en un solo archivo— y los documentos escaneados se bajan aparte: un ZIP por trabajador, con su nombre, con los archivos tal como los subió. Todo viene dentro de un ZIP. Con esto ya no importa si el documento es PDF, PNG o foto: se entrega completo. |
 | 2026-09-03 | 0.1.7 | **Acta de nacimiento** entra a los documentos obligatorios: quien ya estaba completo pasa a pendiente hasta que la suba. Y la ficha en PDF ahora **pega los documentos escaneados** en hojas aparte, dos por hoja, detrás de la ficha de su dueño. Solo se pegan los que son JPEG (lo que se sube con la cámara); un PDF del SAT no se puede pegar sin desarmarlo, así que se apunta por nombre al final de las hojas. |
 | 2026-09-03 | 0.1.6 | Cinco arreglos pedidos desde el celular: el letrero de "guardado" se quita solo a los 5 segundos; **la versión se ve siempre arriba a la derecha**; subir un archivo ya no avienta la pantalla hasta arriba; la ficha en PDF ya no lleva "entregados" ni "faltan"; y al descargar ficha **se palomea qué campos van** — casi nunca hace falta entregar todo. |
@@ -45,6 +46,15 @@ a entrar con su correo. Molesto una vez, nada más.
 - Corrida de GitHub Actions en verde, 56 segundos.
 - El portal responde y trae las cuatro cosas: identificación en dos fotos, aviso de
   privacidad, guardado automático y cámara a pantalla completa.
+
+## Cómo se revisa el celular
+
+La red de estas sesiones no alcanza el portal publicado, así que el acomodo en
+pantalla chica se revisa levantando el portal en la máquina y fotografiándolo:
+`scripts/vista-movil.mjs` lo abre en un Chromium del tamaño de un iPhone, guarda
+las fotos y apunta lo que se sale de la pantalla o los botones a los que no se
+les puede atinar. Las instrucciones están arriba del propio archivo. Así se
+encontró lo de las casillas, que a simple vista parecía un problema de diseño.
 
 ## Pendientes
 

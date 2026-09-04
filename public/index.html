@@ -11,7 +11,7 @@
 <body>
 
 <header class="barra">
-  <div class="logo"><img src="/logo.svg" alt="Taller 101"><span>Portal de Trabajadores</span></div>
+  <div class="logo"><img src="/logo.svg" alt="Taller 101"><span><span class="solo-grande">Portal de </span>Trabajadores</span></div>
   <div class="der">
     <span id="quien"></span>
     <span id="version" class="version oculto" title="Versión del portal"></span>
@@ -209,12 +209,10 @@
     <input id="entrada-doc" type="file" accept="image/*,application/pdf" class="oculto">
   </section>
 
-  <div class="tarjeta" style="position:sticky;bottom:12px">
-    <button id="btn-terminar" class="btn primario bloque">Ya terminé — revisar y enviar</button>
-    <button id="btn-avance" class="btn suave bloque" style="margin-top:8px">Guardar y seguir después</button>
-    <p class="pista centrado" style="margin:10px 0 0" id="pista-guardado">
-      Tus datos se guardan solos mientras escribes.
-    </p>
+  <div class="tarjeta acciones-fin">
+    <button id="btn-terminar" class="btn primario bloque"><span class="solo-grande">Ya terminé — revisar y enviar</span><span class="solo-chico">Ya terminé</span></button>
+    <button id="btn-avance" class="btn suave bloque"><span class="solo-grande">Guardar y seguir después</span><span class="solo-chico">Guardar</span></button>
+    <p class="pista centrado inicial" id="pista-guardado">Tus datos se guardan solos mientras escribes.</p>
   </div>
 
   <p class="pie"><a href="#" id="ver-aviso">Aviso de privacidad</a> · Taller 101 · <a href="/admin">Administración</a></p>
