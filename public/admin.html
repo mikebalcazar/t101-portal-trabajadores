@@ -35,11 +35,11 @@
   <div class="tarjeta">
     <h2>Expedientes</h2>
     <p class="ayuda" id="resumen">Cargando…</p>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
-      <button id="btn-zip" class="btn primario">⬇ Exportar todo (ZIP con carpetas)</button>
-      <a id="btn-csv" class="btn suave" href="/api/admin/tabla.csv">⬇ Solo la tabla (CSV)</a>
-      <button id="btn-refrescar" class="btn suave">↻ Actualizar</button>
-      <input id="buscar" placeholder="Buscar por nombre, CURP, correo…" style="flex:1;min-width:220px">
+    <div class="acciones-panel">
+      <button id="btn-zip" class="btn primario"><span class="solo-grande">⬇ Exportar todo (ZIP con carpetas)</span><span class="solo-chico">⬇ Exportar todo</span></button>
+      <a id="btn-csv" class="btn suave" href="/api/admin/tabla.csv"><span class="solo-grande">⬇ Solo la tabla (CSV)</span><span class="solo-chico">⬇ CSV</span></a>
+      <button id="btn-refrescar" class="btn suave"><span class="solo-grande">↻ Actualizar</span><span class="solo-chico">↻</span></button>
+      <input id="buscar" placeholder="Buscar por nombre, CURP, correo…">
     </div>
   </div>
 

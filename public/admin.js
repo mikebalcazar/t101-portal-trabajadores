@@ -101,7 +101,7 @@ function pintar() {
       <td class="mono">${esc(t.nss)}<br>${esc(t.curp)}</td>
       <td>${esc(t.banco)}<br><span class="mono" style="font-size:12px">${esc(t.clabe)}</span></td>
       <td>${esc(t.emerg_nombre)}<br><span class="mono" style="font-size:12px">${esc(t.emerg_telefono)}</span></td>
-      <td style="max-width:280px">${chips || '<span style="color:var(--tenue)">—</span>'}${falta ? `<div style="color:var(--alerta);font-size:11.5px;margin-top:4px">Faltan ${falta}: ${esc((t.faltantes||[]).join(', '))}</div>` : ''}</td>
+      <td class="celda-docs">${chips || '<span style="color:var(--tenue)">—</span>'}${falta ? `<details class="faltan"><summary>Faltan ${falta}</summary>${esc((t.faltantes||[]).join(', '))}</details>` : ''}</td>
       <td><span class="etiqueta ${t.estado === 'completo' ? 'completo' : 'borrador'}">${t.estado === 'completo' ? 'Completo' : 'Pendiente'}</span></td>
       <td><button class="btn peligro chico" data-baja="${t.id}">Baja</button></td>`;
     cuerpo.appendChild(tr);

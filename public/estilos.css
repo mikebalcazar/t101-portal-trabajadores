@@ -362,22 +362,67 @@ td .btn.chico{padding:5px 9px;font-size:12.5px}
 .acepto:has(input:checked){border-color:var(--marca); background:#f2f9fd}
 .acepto input{width:22px; height:22px; flex:0 0 auto; margin:1px 0 0; accent-color:var(--marca)}
 
+/* Lo que le falta a un expediente es una lista larga. Se enseña el número, que
+   es lo que se lee de un vistazo, y la lista completa se abre con un toque. */
+.faltan{margin-top:5px; font-size:12px; color:var(--alerta); line-height:1.4}
+.faltan summary{cursor:pointer; font-weight:700; list-style:none}
+.faltan summary::-webkit-details-marker{display:none}
+.faltan summary::after{content:' ▾'}
+.faltan[open] summary::after{content:' ▴'}
+.celda-docs{max-width:280px}
+
+.acciones-panel{display:flex; gap:10px; flex-wrap:wrap; margin-top:6px}
+.acciones-panel #buscar{flex:1; min-width:220px}
+
 /* ══════════ el panel en el celular ══════════ */
 @media (max-width:560px){
-  /* La tabla trae diez columnas: en un teléfono no se leen. Se quedan las que
-     sirven para escoger y revisar —palomita, folio, quién, documentos, estado y
-     la baja—; contacto, NSS/CURP, banco y emergencia se ven en la computadora
-     o en la ficha. La tabla sigue corriéndose de lado si hace falta. */
-  table{min-width:0}
-  thead th:nth-child(4), tbody td:nth-child(4),
-  thead th:nth-child(5), tbody td:nth-child(5),
-  thead th:nth-child(6), tbody td:nth-child(6),
-  thead th:nth-child(7), tbody td:nth-child(7){display:none}
-  th, td{padding:9px 8px}
-  /* En el celular, una palomita por renglón: en dos columnas los nombres
-     largos se salían de su columna y se cortaban contra el borde. */
-  .palomitas-campos{display:grid; grid-template-columns:1fr; gap:10px}
+  /* Una tabla de diez columnas no se lee en un teléfono por más que se recorra
+     de lado. Aquí deja de ser tabla: cada trabajador es una tarjeta con lo que
+     hace falta para escoger y revisar —palomita, folio, quién, sus documentos,
+     el estado y la baja—. Contacto, NSS/CURP, banco y emergencia se ven en la
+     computadora o en la ficha. Es el mismo HTML: solo cambia el acomodo. */
+  .tabla-caja{border:0; background:transparent; overflow:visible; border-radius:0}
+  table{min-width:0; width:100%; display:block}
+  thead{display:none}
+  tbody{display:block}
+  tbody tr{
+    display:grid; grid-template-columns:auto 1fr auto; gap:4px 10px;
+    grid-template-areas:
+      "sel  nombre nombre"
+      "sel  docs   docs"
+      "sel  folio  baja";
+    align-items:center;
+    background:#fff; border:1px solid var(--linea); border-radius:12px;
+    padding:12px; margin-bottom:10px; box-shadow:var(--sombra);
+  }
+  tbody tr:hover{background:#fff}
+  tbody td{display:block; border:0; padding:0}
+  tbody td:nth-child(1){grid-area:sel; align-self:start}
+  tbody td:nth-child(2){grid-area:folio; color:var(--tenue); font-size:12.5px}
+  tbody td:nth-child(2)::before{content:'Folio '}
+  tbody td:nth-child(3){grid-area:nombre; font-size:15.5px; line-height:1.35}
+  tbody td:nth-child(4), tbody td:nth-child(5),
+  tbody td:nth-child(6), tbody td:nth-child(7){display:none}
+  tbody td:nth-child(8){grid-area:docs; max-width:none; margin:2px 0 4px}
+  /* El estado se pega al nombre, como una etiqueta suya */
+  tbody td:nth-child(9){grid-area:nombre; justify-self:end; align-self:start}
+  tbody td:nth-child(10){grid-area:baja; justify-self:end}
+  tbody td:nth-child(3) b{display:block; padding-right:96px}
+  /* Los renglones sin resultados no son tarjeta */
+  tbody tr:has(td[colspan]){display:block; padding:20px}
+  .celda-docs .btn.chico, .faltan summary, tbody td:nth-child(10) .btn{min-height:36px; display:inline-flex; align-items:center}
+  .enlace{padding:6px 2px; display:inline-block}
+
+  /* Lo primero que se busca en el teléfono es a una persona, no exportar todo.
+     El buscador se sube y los tres botones se acomodan en un renglón. */
+  .acciones-panel #buscar{order:-1; flex:1 1 100%; min-width:0}
+  .acciones-panel{gap:8px}
+  .acciones-panel .btn{flex:1 1 auto; padding:11px 12px; font-size:14px; text-align:center}
+  /* Dos columnas: son palabras cortas y así la lista no empuja la tabla hasta
+     el fondo de la pantalla. El nombre largo se lleva el renglón completo. */
+  .palomitas-campos{display:grid; grid-template-columns:1fr 1fr; gap:10px 12px}
   .palomitas-campos label{align-items:flex-start; min-width:0}
+  .palomitas-campos label:last-child{grid-column:1 / -1}
   .palomitas-campos input{margin-top:2px}
 }
 
