@@ -1,4 +1,4 @@
-/* Administración — Portal de Trabajadores Taller 101 */
+/* Roster101 — Administración */
 'use strict';
 const $ = (s) => document.querySelector(s);
 

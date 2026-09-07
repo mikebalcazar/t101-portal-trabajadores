@@ -1,9 +1,10 @@
-# Bitácora del Portal de Trabajadores
+# Bitácora de Roster101
 
 Cada renglón es una versión publicada. La más reciente hasta arriba.
 
 | Fecha | Versión | Qué cambió |
 |---|---|---|
+| 2026-09-07 | 0.2.0 | **La plataforma se llama Roster101.** El logotipo es el de Taller 101 con la palabra cambiada: misma tipografía (Sansation Bold), mismo tamaño e interletrado, convertida a trazos; el anillo, el "101" y la raya son los vectores del archivo de marca. Como "roster" es más ancha que "taller", el conjunto se volvió a centrar y la raya se alargó lo mismo que creció la palabra. Taller 101 sigue siendo la empresa: es la que aparece en el aviso de privacidad, en los correos, en las fichas y en los expedientes. |
 | 2026-09-04 | 0.1.11 | **Parentesco del contacto de emergencia**, obligatorio: se escoge de una lista (madre, padre, esposa, hijo, hermano…). Sale en la ficha en PDF, en el CSV y en el panel, junto al nombre. Quien ya estaba completo pasa a pendiente hasta que lo indique. |
 | 2026-09-04 | 0.1.10 | **El panel de administración, para el celular.** La tabla de diez columnas deja de ser tabla en el teléfono: cada trabajador es una tarjeta con su nombre, su estado, sus documentos, el folio y la baja. La lista de lo que le falta se guarda detrás de un "Faltan 9" que se abre con un toque —también en computadora, donde ocupaba media columna—. Arriba, el buscador se sube al primer lugar y los botones de exportar se acomodan en un renglón. |
 | 2026-09-04 | 0.1.9 | **El celular, arreglado.** La tarjeta de botones se comía un tercio de la pantalla y tapaba el campo de abajo: ahora es una barra delgada de dos botones y nada queda escondido detrás. La barra de arriba cabe en un renglón. Las casillas heredaban `width:100%` de los campos de texto —cada palomita medía lo ancho de su tarjeta y empujaba su texto fuera de la pantalla—, y eso descomponía el panel entero. La tabla del panel deja ver en el teléfono solo lo que sirve para escoger y revisar. Los botones de subir documento ya miden lo que mide un dedo. |

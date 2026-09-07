@@ -1,4 +1,4 @@
-/* Portal de Trabajadores — Taller 101 */
+/* Roster101 — Portal de Trabajadores */
 'use strict';
 
 const $ = (s) => document.querySelector(s);

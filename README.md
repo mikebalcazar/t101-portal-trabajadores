@@ -1,4 +1,4 @@
-# Portal de Trabajadores — Taller 101
+# Roster101 — Portal de Trabajadores
 
 Webapp para que cada trabajador registre sus datos, suba sus documentos escaneados
 y administración exporte todo en un ZIP con **una carpeta por trabajador** más una

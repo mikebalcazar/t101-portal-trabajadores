@@ -1,4 +1,4 @@
-// Portal de Trabajadores — Taller 101
+// Roster101 — Portal de Trabajadores de Taller 101
 // Cloudflare Worker + D1 + R2
 
 import { Hono } from 'hono';
@@ -751,7 +751,7 @@ app.get('/api/admin/tabla.csv', exigeAdmin, async (c) => {
   });
 });
 
-app.get('/api/salud', (c) => c.json({ ok: true, servicio: 'Portal Taller 101', hora: ahora() }));
+app.get('/api/salud', (c) => c.json({ ok: true, servicio: 'Roster101', hora: ahora() }));
 
 // Datos del responsable: los lee el navegador para armar el aviso de privacidad.
 app.get('/api/config', (c) => c.json({
