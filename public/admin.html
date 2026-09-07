@@ -27,7 +27,30 @@
       <div class="error" id="acc-error"></div>
     </div>
     <button id="btn-entrar" class="btn primario bloque" style="margin-top:12px">Entrar</button>
+    <p class="pista centrado" style="margin:12px 0 0"><button type="button" id="btn-olvide" class="enlace">Olvidé la clave</button></p>
   </div>
+
+  <!-- Recuperar: el código va al correo configurado, no a uno que se escriba -->
+  <div class="tarjeta oculto" id="caja-restaurar">
+    <h2>Recuperar la clave</h2>
+    <p class="ayuda" id="txt-restaurar"></p>
+    <div id="aviso-restaurar"></div>
+    <div class="campo">
+      <label for="res-codigo">Código de 6 dígitos</label>
+      <input id="res-codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456"
+             style="font-size:24px;letter-spacing:8px;text-align:center">
+      <div class="error" data-e="codigo"></div>
+    </div>
+    <div class="campo">
+      <label for="res-nueva">Clave nueva</label>
+      <input id="res-nueva" type="password" autocomplete="new-password" placeholder="Al menos 10 caracteres">
+      <small class="pista">No puede ser una que ya se haya usado en los últimos 6 meses.</small>
+      <div class="error" data-e="nueva"></div>
+    </div>
+    <button id="btn-restaurar" class="btn primario bloque">Poner la clave nueva</button>
+    <p class="pista centrado" style="margin:12px 0 0"><button type="button" id="btn-cancelar-res" class="enlace">Regresar</button></p>
+  </div>
+
   <p class="pie"><a href="/">← Ir al portal del trabajador</a></p>
 </main>
 
@@ -45,6 +68,12 @@
         <button type="button" id="vista-compacta">Compacta</button>
       </div>
     </div>
+  </div>
+
+  <div class="aviso mal oculto" id="aviso-arranque" style="margin-bottom:18px">
+    <b>Todavía estás entrando con la clave de instalación.</b> Esa clave estuvo escrita en
+    el repositorio, así que no sirve para proteger nada. Ponle una tuya aquí abajo; en cuanto
+    lo hagas, la vieja deja de funcionar.
   </div>
 
   <div class="tarjeta" id="caja-fichas">
@@ -101,6 +130,28 @@
       <tbody id="cuerpo"></tbody>
     </table>
   </div>
+  <details class="tarjeta" id="caja-clave">
+    <summary class="titulo-plegable"><h2 style="display:inline;margin:0">🔑 La clave de este panel</h2>
+      <span class="ayuda" style="display:block;margin-top:4px" id="clave-estado">…</span>
+    </summary>
+    <div id="aviso-clave"></div>
+    <div class="rejilla" style="margin-top:14px">
+      <div class="campo">
+        <label for="cl-actual">La clave de hoy</label>
+        <input id="cl-actual" type="password" autocomplete="current-password" placeholder="••••••••">
+        <small class="pista">Se pide aunque ya estés adentro: una sesión olvidada en otra computadora no debería alcanzar para quedarse con el panel.</small>
+        <div class="error" data-e="actual"></div>
+      </div>
+      <div class="campo">
+        <label for="cl-nueva">La clave nueva</label>
+        <input id="cl-nueva" type="password" autocomplete="new-password" placeholder="Al menos 10 caracteres">
+        <small class="pista">No puede ser una que ya se haya usado en los últimos 6 meses.</small>
+        <div class="error" data-e="nueva"></div>
+      </div>
+    </div>
+    <button id="btn-cambiar-clave" class="btn primario" style="margin-top:6px">Cambiar la clave</button>
+  </details>
+
   <details class="tarjeta" id="caja-bitacora">
     <summary class="titulo-plegable"><h2 style="display:inline;margin:0">📋 Movimientos</h2>
       <span class="ayuda" style="display:block;margin-top:4px">Todo lo que pasa en el portal, con fecha y hora. De entrada se ven los correos que pidieron su código; palomea lo demás para verlo.</span>

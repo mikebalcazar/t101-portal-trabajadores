@@ -57,6 +57,7 @@ async function cargar() {
   pintar();
   cargarDuplicados();
   cargarPapelera();
+  estadoClave();
 }
 
 // El portal ya no deja guardar un dato repetido, pero esto muestra lo que haya
@@ -333,6 +334,94 @@ async function pintarMarca() {
   pintarMarca();
   try { await abrir(); } catch (e) { if (e.estado !== 401) console.error('No se pudo abrir el panel:', e); }
 })();
+
+/* ─────────── la clave del panel ─────────── */
+// La clave ya no vive en el repositorio: vive en el Worker, hasheada, junto con
+// las que ya se usaron. De aquí sale cambiarla sabiéndola, y recuperarla cuando
+// se olvidó con un código que llega al correo configurado de la empresa.
+
+function limpiaErrores(caja) {
+  for (const e of caja.querySelectorAll('.error')) e.textContent = '';
+  for (const c of caja.querySelectorAll('.campo.falta')) c.classList.remove('falta');
+}
+
+function marcaErrores(caja, errores = {}) {
+  for (const [campo, texto] of Object.entries(errores)) {
+    const e = caja.querySelector(`[data-e="${campo}"]`);
+    if (e) { e.textContent = texto; e.closest('.campo')?.classList.add('falta'); }
+  }
+}
+
+async function estadoClave() {
+  try {
+    const d = await api('/api/admin/clave');
+    $('#aviso-arranque').classList.toggle('oculto', !d.arranque);
+    if (d.arranque) $('#caja-clave').open = true;
+    $('#clave-estado').textContent = d.arranque
+      ? 'Todavía es la de instalación. Cámbiala.'
+      : `Se puso el ${new Date(d.desde).toLocaleDateString('es-MX', { day:'2-digit', month:'long', year:'numeric' })}. No puede repetirse una de los últimos ${d.meses} meses.`;
+  } catch { /* si no se alcanza, la tarjeta se queda como está */ }
+}
+
+$('#btn-cambiar-clave').addEventListener('click', async () => {
+  const caja = $('#caja-clave');
+  limpiaErrores(caja);
+  $('#aviso-clave').innerHTML = '';
+  const b = $('#btn-cambiar-clave'); b.disabled = true; b.textContent = 'Cambiando…';
+  try {
+    const r = await api('/api/admin/clave', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ actual: $('#cl-actual').value, nueva: $('#cl-nueva').value }),
+    });
+    $('#cl-actual').value = ''; $('#cl-nueva').value = '';
+    $('#aviso-clave').innerHTML = `<div class="aviso bien">${esc(r.mensaje)}</div>`;
+    await estadoClave();
+  } catch (e) {
+    $('#aviso-clave').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
+    marcaErrores(caja, e.datos?.errores);
+  } finally { b.disabled = false; b.textContent = 'Cambiar la clave'; }
+});
+
+/* ── recuperar, desde la pantalla de acceso ── */
+
+$('#btn-olvide').addEventListener('click', async () => {
+  const b = $('#btn-olvide'); b.disabled = true; b.textContent = 'Mandando el código…';
+  try {
+    const r = await api('/api/admin/clave/olvide', { method:'POST' });
+    $('#caja-restaurar').classList.remove('oculto');
+    $('#txt-restaurar').innerHTML =
+      `Se mandó un código a <b>${esc(r.correo)}</b>, el correo configurado de la empresa. Vence en 15 minutos.`;
+    $('#res-codigo').focus();
+  } catch (e) {
+    $('#acc-error').textContent = e.message;
+  } finally { b.disabled = false; b.textContent = 'Olvidé la clave'; }
+});
+
+$('#btn-cancelar-res').addEventListener('click', () => {
+  $('#caja-restaurar').classList.add('oculto');
+  $('#res-codigo').value = ''; $('#res-nueva').value = '';
+});
+
+$('#btn-restaurar').addEventListener('click', async () => {
+  const caja = $('#caja-restaurar');
+  limpiaErrores(caja);
+  $('#aviso-restaurar').innerHTML = '';
+  const b = $('#btn-restaurar'); b.disabled = true; b.textContent = 'Guardando…';
+  try {
+    const r = await api('/api/admin/clave/restaurar', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ codigo: $('#res-codigo').value, nueva: $('#res-nueva').value }),
+    });
+    caja.classList.add('oculto');
+    $('#clave').value = '';
+    $('#acc-error').textContent = '';
+    $('#aviso-acceso-ok') || $('#acceso .tarjeta').insertAdjacentHTML('afterbegin', `<div class="aviso bien" id="aviso-acceso-ok">${esc(r.mensaje)}</div>`);
+    $('#clave').focus();
+  } catch (e) {
+    $('#aviso-restaurar').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
+    marcaErrores(caja, e.datos?.errores);
+  } finally { b.disabled = false; b.textContent = 'Poner la clave nueva'; }
+});
 
 /* ─────────── cómo se ve la lista ─────────── */
 // La vista completa es para revisar a alguien; la compacta, para pasar lista.

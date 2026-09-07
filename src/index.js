@@ -5,13 +5,14 @@ import { Hono } from 'hono';
 import {
   ahora, uuid, firmar, verificar, sha256, igualSeguro,
   cookie, leerCookie, normalizaEmail, limpiaNombre, csvCampo, empresaDe,
+  salNueva, derivaClave, claveCoincide, VUELTAS_CLAVE,
 } from './lib.js';
 import {
   revisaExpediente, emailValido,
   DOCS_OBLIGATORIOS, DOCS_OPCIONALES, NOMBRES_DOC,
   CAMPOS_EXPEDIENTE, faltantesCampos,
 } from './validar.js';
-import { enviarCorreo, correoCodigo, correoConfirmacion, correoAvisoAdmin } from './correo.js';
+import { enviarCorreo, correoCodigo, correoConfirmacion, correoAvisoAdmin, correoClaveAdmin } from './correo.js';
 import { armaZip, exportarCsv, armaZipFichas } from './exportar.js';
 import { armaFichas, nombreArchivoFichas, CAMPOS_FICHA, CAMPOS_POR_DEFECTO } from './ficha.js';
 
@@ -107,6 +108,17 @@ async function choquesDe(env, id, datos) {
     if (otro) choques.push({ campo, nombre, mensaje });
   }
   return choques;
+}
+
+// El correo, tapado: se ve en qué buzón buscar sin regalarle la dirección
+// completa a quien no la tenía. mike@forespot.com → mi••@fo••••••.com
+function tapaCorreo(correo) {
+  const [antes, dominio] = String(correo || '').split('@');
+  if (!dominio) return '';
+  const corta = (t, deja) => t.length <= deja ? t : t.slice(0, deja) + '•'.repeat(Math.min(8, t.length - deja));
+  const partes = dominio.split('.');
+  const fin = partes.pop();
+  return `${corta(antes, 2)}@${corta(partes.join('.'), 2)}.${fin}`;
 }
 
 function enumera(cosas) {
@@ -462,9 +474,108 @@ async function limpiaIntentos(env, llave, t) {
   } catch (e) { console.error('intentos_admin limpia', e); }
 }
 
+/* ─────────────────── la clave del panel ───────────────────
+ * La clave dejó de vivir en el repositorio. Vive aquí, hasheada, junto con las
+ * que ya se usaron: así se puede cambiar sin tocar GitHub, se puede recuperar
+ * cuando se olvida, y se puede negar que alguien vuelva a poner una de hace
+ * poco. Lo que queda de `CLAVE_ADMIN` es nada más el arranque: sirve para la
+ * primerísima entrada y deja de valer en cuanto se pone una clave de verdad.
+ */
+
+const MESES_QUE_SE_RECUERDAN = 6;
+const CLAVE_MINIMO = 10;
+// Cuántas claves viejas se alcanzan a revisar. Cada una cuesta una derivación,
+// así que se le pone tope: con seis meses de cambios nunca se llega ni cerca.
+const TOPE_CLAVES_VIEJAS = 60;
+
+async function claveVigente(env) {
+  return await env.DB.prepare('SELECT * FROM claves_admin WHERE vigente = 1 LIMIT 1').first();
+}
+
+function desdeCuandoSeRecuerda() {
+  const d = new Date();
+  d.setMonth(d.getMonth() - MESES_QUE_SE_RECUERDAN);
+  return d.toISOString();
+}
+
+// ¿Esta clave ya se usó en los últimos seis meses? Hay que probarla contra cada
+// clave vieja por separado, porque cada una tiene su propia sal: no se pueden
+// comparar hashes entre sí.
+async function claveYaUsada(env, clave) {
+  // La de instalación cuenta como usada aunque todavía no esté archivada: es la
+  // que anduvo en el repositorio y es la última que se debería poder repetir.
+  if (env.CLAVE_ADMIN && igualSeguro(await sha256(String(clave || '')), await sha256(env.CLAVE_ADMIN))) {
+    return { creada_en: null, quien: 'bootstrap' };
+  }
+  const { results } = await env.DB.prepare(
+    `SELECT hash, sal, vueltas, creada_en FROM claves_admin
+     WHERE creada_en >= ? ORDER BY creada_en DESC LIMIT ?`
+  ).bind(desdeCuandoSeRecuerda(), TOPE_CLAVES_VIEJAS).all();
+  for (const fila of results || []) {
+    if (await claveCoincide(clave, fila)) return fila;
+  }
+  return null;
+}
+
+function motivoRepetida(usada) {
+  if (usada.quien === 'bootstrap' && !usada.creada_en) {
+    return 'Esa es la clave con la que se instaló el portal, y estuvo escrita en el repositorio. Escoge otra.';
+  }
+  const cuando = new Date(usada.creada_en).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+  return `Esa clave ya se usó (desde el ${cuando}). Tiene que ser una que no se haya usado en los últimos ${MESES_QUE_SE_RECUERDAN} meses.`;
+}
+
+function revisaClaveNueva(clave) {
+  const c = String(clave || '');
+  if (c.length < CLAVE_MINIMO) return `La clave necesita al menos ${CLAVE_MINIMO} caracteres.`;
+  if (c.trim() !== c) return 'La clave no puede empezar ni terminar con espacio: se pierde al copiarla.';
+  if (new Set(c).size < 4) return 'Esa clave es demasiado sencilla: usa al menos cuatro caracteres distintos.';
+  return null;
+}
+
+// Guarda una clave en el montón de las usadas, sin ponerla vigente.
+async function archivaClave(env, clave, motivo) {
+  const sal = salNueva();
+  const hash = await derivaClave(clave, sal);
+  await env.DB.prepare(
+    'INSERT INTO claves_admin (hash, sal, vueltas, creada_en, vigente, quien) VALUES (?,?,?,?,0,?)'
+  ).bind(hash, sal, VUELTAS_CLAVE, ahora(), motivo).run();
+}
+
+// Deja puesta la clave nueva y manda la anterior al montón de las viejas. Las
+// viejas no se borran: son justo lo que impide volver a usarlas.
+async function ponClave(env, clave, motivo) {
+  // Al salir del arranque hay que guardar primero la clave de instalación, o se
+  // quedaría fuera del montón de las usadas: justo la que estuvo escrita en el
+  // repositorio sería la única que se podría volver a poner.
+  const habia = await claveVigente(env);
+  if (!habia && env.CLAVE_ADMIN) await archivaClave(env, env.CLAVE_ADMIN, 'bootstrap');
+
+  const sal = salNueva();
+  const hash = await derivaClave(clave, sal);
+  await env.DB.prepare('UPDATE claves_admin SET vigente = 0 WHERE vigente = 1').run();
+  await env.DB.prepare(
+    'INSERT INTO claves_admin (hash, sal, vueltas, creada_en, vigente, quien) VALUES (?,?,?,?,1,?)'
+  ).bind(hash, sal, VUELTAS_CLAVE, ahora(), motivo).run();
+  // Lo que ya cumplió sus seis meses deja de estorbar: ni sirve para entrar ni
+  // se sigue negando, así que no hay razón para guardarlo.
+  await env.DB.prepare('DELETE FROM claves_admin WHERE vigente = 0 AND creada_en < ?')
+    .bind(desdeCuandoSeRecuerda()).run();
+}
+
+// Qué clave abre hoy. Mientras no haya ninguna guardada vale la del arranque;
+// en cuanto se pone una de verdad, esa deja de valer para siempre.
+async function claveAbre(env, clave) {
+  const fila = await claveVigente(env);
+  if (fila) return { ok: await claveCoincide(clave, fila), arranque: false };
+  if (!env.CLAVE_ADMIN) return { ok: false, arranque: true, sinClave: true };
+  const a = await sha256(String(clave || ''));
+  const b = await sha256(env.CLAVE_ADMIN);
+  return { ok: igualSeguro(a, b), arranque: true };
+}
+
 app.post('/api/admin/entrar', async (c) => {
   const { clave } = await c.req.json().catch(() => ({}));
-  if (!c.env.CLAVE_ADMIN) return err(c, 'Falta configurar CLAVE_ADMIN.', 500);
 
   const llave = quienIntenta(c);
   const t = Math.floor(Date.now() / 1000);
@@ -481,10 +592,10 @@ app.post('/api/admin/entrar', async (c) => {
     );
   }
 
-  const a = await sha256(String(clave || ''));
-  const b = await sha256(c.env.CLAVE_ADMIN);
+  const veredicto = await claveAbre(c.env, clave);
+  if (veredicto.sinClave) return err(c, 'Este panel todavía no tiene clave. Avísale a quien lo instaló.', 500);
 
-  if (!igualSeguro(a, b)) {
+  if (!veredicto.ok) {
     await new Promise((r) => setTimeout(r, 700));
 
     const sigueLaRacha = previo && (t - previo.visto_en) < OLVIDO;
@@ -521,8 +632,132 @@ app.post('/api/admin/entrar', async (c) => {
   if (previo) await limpiaIntentos(c.env, llave, t);
   const token = await firmar({ rol: 'admin', exp: Math.floor(Date.now() / 1000) + 8 * HORAS }, secreto(c.env));
   c.header('Set-Cookie', cookie('t101_admin', token, 8 * HORAS));
-  await registra(c.env, 'admin', 'ingreso_admin');
-  return c.json({ ok: true });
+  await registra(c.env, 'admin', 'ingreso_admin', veredicto.arranque ? 'con la clave de arranque' : '');
+  // Entrar con la del arranque no es entrar: es que todavía no se ha puesto una.
+  // El panel lo enseña arriba hasta que se cambie.
+  return c.json({ ok: true, arranque: veredicto.arranque });
+});
+
+// Cambiarla sabiéndola. Se pide la de hoy aunque ya haya sesión abierta: una
+// sesión olvidada en una computadora ajena no debería alcanzar para quedarse con
+// el panel.
+app.post('/api/admin/clave', exigeAdmin, async (c) => {
+  const { actual, nueva } = await c.req.json().catch(() => ({}));
+
+  const veredicto = await claveAbre(c.env, actual);
+  if (!veredicto.ok) {
+    await new Promise((r) => setTimeout(r, 700));
+    return err(c, 'Esa no es la clave de hoy.', 401, { errores: { actual: 'No coincide con la clave actual.' } });
+  }
+
+  const problema = revisaClaveNueva(nueva);
+  if (problema) return err(c, problema, 422, { errores: { nueva: problema } });
+
+  const usada = await claveYaUsada(c.env, nueva);
+  if (usada) {
+    return err(c, motivoRepetida(usada), 409, { errores: { nueva: 'Ya se usó.' } });
+  }
+
+  await ponClave(c.env, nueva, 'cambio');
+  await registra(c.env, 'admin', 'clave_cambiada', veredicto.arranque ? 'salió de la clave de arranque' : '');
+  return c.json({ ok: true, mensaje: 'Listo: de ahora en adelante se entra con la clave nueva.' });
+});
+
+// Olvidarla. El código va al correo configurado de la empresa —el mismo que
+// recibe los avisos—, nunca a uno que se escriba aquí: si se pudiera escribir,
+// cualquiera se mandaría el código a sí mismo.
+app.post('/api/admin/clave/olvide', async (c) => {
+  const llave = quienIntenta(c);
+  const t = Math.floor(Date.now() / 1000);
+  const previo = await leeIntentos(c.env, llave);
+  if (previo && previo.bloqueado_hasta > t) {
+    return err(c, `Demasiados intentos. Vuelve a intentar en ${esperaLegible(previo.bloqueado_hasta - t)}.`, 429);
+  }
+
+  const correo = c.env.CORREO_AVISOS || c.env.CORREO_PRIVACIDAD;
+  if (!correo) return err(c, 'Este portal no tiene configurado un correo a dónde mandar el código.', 503);
+  // En desarrollo local (sin llave de correo y con MODO_PRUEBA=1) el código se
+  // devuelve en vez de mandarse, igual que el del trabajador. En producción
+  // siempre hay llave, así que esta rama no existe.
+  const enPruebas = !c.env.RESEND_API_KEY && c.env.MODO_PRUEBA === '1';
+  if (!c.env.RESEND_API_KEY && !enPruebas) return err(c, 'Este portal no puede mandar correos ahora mismo.', 503);
+
+  const previoCodigo = await c.env.DB.prepare('SELECT enviado_en FROM codigos_admin WHERE id = 1').first();
+  const ms = Date.now();
+  if (previoCodigo && ms - previoCodigo.enviado_en < 60_000) {
+    return err(c, 'Ya se mandó un código hace un momento. Revisa el correo o espera un minuto.', 429);
+  }
+
+  const codigo = String(Math.floor(100000 + Math.random() * 900000));
+  const hash = await sha256(codigo + '|clave-admin|' + secreto(c.env));
+  await c.env.DB.prepare(
+    `INSERT INTO codigos_admin (id, hash, expira, intentos, enviado_en) VALUES (1,?,?,0,?)
+     ON CONFLICT(id) DO UPDATE SET hash=excluded.hash, expira=excluded.expira, intentos=0, enviado_en=excluded.enviado_en`
+  ).bind(hash, ms + 15 * 60_000, ms).run();
+
+  if (!enPruebas) {
+    try {
+      await enviarCorreo(c.env, { para: correo, ...correoClaveAdmin(empresaDe(c.env), codigo) });
+    } catch {
+      return err(c, 'No se pudo mandar el correo. Inténtalo otra vez en un momento.', 502);
+    }
+  }
+  await registra(c.env, llave, 'clave_recuperacion_pedida', `código mandado a ${tapaCorreo(correo)}`);
+
+  // Se dice a dónde fue, pero tapado: sirve para saber en qué buzón buscar sin
+  // regalarle la dirección a quien no la tenía.
+  return c.json({ ok: true, correo: tapaCorreo(correo), ...(enPruebas ? { codigo_prueba: codigo } : {}) });
+});
+
+// Con el código, poner una clave nueva. No hace falta sesión: justamente el caso
+// es que nadie puede entrar.
+app.post('/api/admin/clave/restaurar', async (c) => {
+  const { codigo, nueva } = await c.req.json().catch(() => ({}));
+  const llave = quienIntenta(c);
+  const t = Math.floor(Date.now() / 1000);
+  const previo = await leeIntentos(c.env, llave);
+  if (previo && previo.bloqueado_hasta > t) {
+    return err(c, `Demasiados intentos. Vuelve a intentar en ${esperaLegible(previo.bloqueado_hasta - t)}.`, 429);
+  }
+
+  const fila = await c.env.DB.prepare('SELECT * FROM codigos_admin WHERE id = 1').first();
+  if (!fila) return err(c, 'Pide un código nuevo.', 401);
+  if (fila.expira < Date.now()) return err(c, 'El código venció. Pide uno nuevo.', 401);
+  if (fila.intentos >= 5) return err(c, 'Demasiados intentos con ese código. Pide uno nuevo.', 429);
+
+  const hash = await sha256(String(codigo || '').replace(/\D/g, '') + '|clave-admin|' + secreto(c.env));
+  if (!igualSeguro(hash, fila.hash)) {
+    await c.env.DB.prepare('UPDATE codigos_admin SET intentos = intentos + 1 WHERE id = 1').run();
+    await new Promise((r) => setTimeout(r, 700));
+    return err(c, 'Código incorrecto.', 401, { errores: { codigo: 'No coincide.' } });
+  }
+
+  // El código está bien: ya nada más falta que la clave sirva. Se revisa antes
+  // de quemarlo, para que un error de tecleo no obligue a pedir otro.
+  const problema = revisaClaveNueva(nueva);
+  if (problema) return err(c, problema, 422, { errores: { nueva: problema } });
+
+  const usada = await claveYaUsada(c.env, nueva);
+  if (usada) {
+    return err(c, motivoRepetida(usada), 409, { errores: { nueva: 'Ya se usó.' } });
+  }
+
+  await ponClave(c.env, nueva, 'restauracion');
+  await c.env.DB.prepare('DELETE FROM codigos_admin WHERE id = 1').run();
+  if (previo) await limpiaIntentos(c.env, llave, t);
+  await registra(c.env, 'admin', 'clave_restaurada', 'con código al correo');
+  return c.json({ ok: true, mensaje: 'Clave cambiada. Ya puedes entrar con la nueva.' });
+});
+
+// Cómo anda la clave: si todavía es la del arranque y de cuándo es la de hoy.
+app.get('/api/admin/clave', exigeAdmin, async (c) => {
+  const fila = await claveVigente(c.env);
+  return c.json({
+    arranque: !fila,
+    desde: fila ? fila.creada_en : null,
+    minimo: CLAVE_MINIMO,
+    meses: MESES_QUE_SE_RECUERDAN,
+  });
 });
 
 app.post('/api/admin/salir', (c) => {
@@ -865,6 +1100,9 @@ const ACCIONES_BITACORA = [
   // de otra persona, y eso se tiene que poder ver donde vive el expediente.
   { accion: 'expediente_capturado', capa: 'empresa', grupo: 'Expedientes', corto: 'Capturaron por él', dice: 'Capturaron datos en su expediente', tono: '' },
 
+  { accion: 'clave_cambiada', capa: 'roster101', grupo: 'Panel', corto: 'Cambió la clave', dice: 'Cambió la clave del panel', tono: '' },
+  { accion: 'clave_restaurada', capa: 'roster101', grupo: 'Panel', corto: 'Restauró la clave', dice: 'Restauró la clave con el código del correo', tono: 'mal' },
+  { accion: 'clave_recuperacion_pedida', capa: 'roster101', grupo: 'Panel', corto: 'Pidió recuperar la clave', dice: 'Pidió el código para recuperar la clave', tono: 'mal' },
   { accion: 'ingreso_admin', capa: 'roster101', grupo: 'Panel', corto: 'Entró al panel', dice: 'Entró al panel de la empresa', tono: '' },
   { accion: 'admin_clave_mala', capa: 'roster101', grupo: 'Panel', corto: 'Falló la clave', dice: 'Falló la clave del panel', tono: 'mal' },
   { accion: 'admin_bloqueado', capa: 'roster101', grupo: 'Panel', corto: 'Se bloqueó por fallar', dice: 'Se bloqueó por fallar la clave', tono: 'mal' },

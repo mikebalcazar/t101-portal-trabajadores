@@ -101,3 +101,35 @@ export function csvCampo(v) {
   const s = String(v ?? '');
   return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
+
+/* ─────────── claves guardadas ───────────
+ * Una clave no se guarda: se guarda lo que sale de estirarla con PBKDF2 y su
+ * sal. Así, si alguien se lleva la base, no se lleva la clave; y comparar dos
+ * claves cuesta lo mismo estén bien o mal, que es lo que evita que se adivine
+ * midiendo el tiempo.
+ */
+
+export const VUELTAS_CLAVE = 120000;
+
+export function salNueva() {
+  return b64url(crypto.getRandomValues(new Uint8Array(16)));
+}
+
+export async function derivaClave(clave, sal, vueltas = VUELTAS_CLAVE) {
+  const material = await crypto.subtle.importKey('raw', enc.encode(String(clave)), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: deB64url(sal), iterations: vueltas, hash: 'SHA-256' },
+    material,
+    256
+  );
+  return b64url(new Uint8Array(bits));
+}
+
+// ¿Esta clave es la que produjo ese renglón? Se deriva con la sal y las vueltas
+// que traiga el renglón, no con las de hoy: así una clave vieja se sigue
+// pudiendo comparar aunque el costo haya subido desde entonces.
+export async function claveCoincide(clave, fila) {
+  if (!fila) return false;
+  const h = await derivaClave(clave, fila.sal, fila.vueltas || VUELTAS_CLAVE);
+  return igualSeguro(h, fila.hash);
+}
