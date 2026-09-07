@@ -1,4 +1,4 @@
-// roster101 — Portal de Trabajadores de Taller 101
+// roster101 — el Worker de una empresa: el portal del trabajador y el panel de la empresa
 // Cloudflare Worker + D1 + R2
 
 import { Hono } from 'hono';
@@ -740,7 +740,9 @@ app.put('/api/admin/trabajadores/:id', exigeAdmin, async (c) => {
     estado, ahora(), id
   ).run();
 
-  await registra(c.env, 'admin', 'expediente_capturado', `${t.email}${parcial ? ' (a medias)' : ''}`);
+  // Se apunta a nombre del trabajador, no de quien lo escribió: así el renglón
+  // sale junto a lo demás de su expediente, que es donde se busca.
+  await registra(c.env, t.email, 'expediente_capturado', 'lo capturó administración');
 
   const nuevo = await c.env.DB.prepare('SELECT * FROM trabajadores WHERE id = ?').bind(id).first();
   return c.json({
@@ -842,29 +844,41 @@ app.get('/api/admin/exportar', exigeAdmin, async (c) => {
 // El catálogo manda. `dice` es lo que se lee en el renglón; `corto`, lo que se
 // lee en la casilla; `grupo`, en qué montón va. La marca `sola` es la que viene
 // prendida de entrada: pedir acceso es lo que se consulta casi siempre.
+// `capa` dice en qué pantalla de roster101 se enseña cada movimiento:
+//   'empresa'   → el panel de la empresa. Lo que hace su gente con su expediente.
+//   'roster101' → el panel maestro, el nuestro. Quién administró y qué se llevó.
+// Se apuntan las dos, siempre; lo que cambia es dónde se leen. El panel de la
+// empresa no tiene por qué llenarse de renglones de "entró a administración"
+// cuando lo que se viene a ver es a quién le mandamos su código.
 const ACCIONES_BITACORA = [
-  { accion: 'codigo_enviado', grupo: 'Accesos', corto: 'Pidió su código', dice: 'Pidió entrar — se le mandó su código', tono: 'bien', sola: true },
-  { accion: 'ingreso', grupo: 'Accesos', corto: 'Usó su acceso', dice: 'Usó su acceso — entró al portal', tono: 'bien' },
-  { accion: 'alta', grupo: 'Accesos', corto: 'Entró por primera vez', dice: 'Entró por primera vez', tono: 'bien' },
-  { accion: 'codigo_malo', grupo: 'Accesos', corto: 'Escribió mal el código', dice: 'Escribió mal el código', tono: 'mal' },
-  { accion: 'codigo_no_enviado', grupo: 'Accesos', corto: 'El código no salió', dice: 'Pidió entrar — el código NO salió', tono: 'mal' },
-  { accion: 'codigo_repetido', grupo: 'Accesos', corto: 'Pidió otro muy seguido', dice: 'Pidió otro código muy seguido', tono: '' },
+  { accion: 'codigo_enviado', capa: 'empresa', grupo: 'Accesos', corto: 'Pidió su código', dice: 'Pidió entrar — se le mandó su código', tono: 'bien', sola: true },
+  { accion: 'ingreso', capa: 'empresa', grupo: 'Accesos', corto: 'Usó su acceso', dice: 'Usó su acceso — entró al portal', tono: 'bien' },
+  { accion: 'alta', capa: 'empresa', grupo: 'Accesos', corto: 'Entró por primera vez', dice: 'Entró por primera vez', tono: 'bien' },
+  { accion: 'codigo_malo', capa: 'empresa', grupo: 'Accesos', corto: 'Escribió mal el código', dice: 'Escribió mal el código', tono: 'mal' },
+  { accion: 'codigo_no_enviado', capa: 'empresa', grupo: 'Accesos', corto: 'El código no salió', dice: 'Pidió entrar — el código NO salió', tono: 'mal' },
+  { accion: 'codigo_repetido', capa: 'empresa', grupo: 'Accesos', corto: 'Pidió otro muy seguido', dice: 'Pidió otro código muy seguido', tono: '' },
 
-  { accion: 'expediente_guardado', grupo: 'Expedientes', corto: 'Guardó sus datos', dice: 'Guardó su expediente', tono: '' },
-  { accion: 'documento_subido', grupo: 'Expedientes', corto: 'Subió un documento', dice: 'Subió un documento', tono: '' },
-  { accion: 'aviso_aceptado', grupo: 'Expedientes', corto: 'Aceptó el aviso', dice: 'Aceptó el aviso de privacidad', tono: '' },
+  { accion: 'expediente_guardado', capa: 'empresa', grupo: 'Expedientes', corto: 'Guardó sus datos', dice: 'Guardó su expediente', tono: '' },
+  { accion: 'documento_subido', capa: 'empresa', grupo: 'Expedientes', corto: 'Subió un documento', dice: 'Subió un documento', tono: '' },
+  { accion: 'aviso_aceptado', capa: 'empresa', grupo: 'Expedientes', corto: 'Aceptó el aviso', dice: 'Aceptó el aviso de privacidad', tono: '' },
+  // Este sí es del expediente, no del panel: es alguien escribiendo en la hoja
+  // de otra persona, y eso se tiene que poder ver donde vive el expediente.
+  { accion: 'expediente_capturado', capa: 'empresa', grupo: 'Expedientes', corto: 'Capturaron por él', dice: 'Capturaron datos en su expediente', tono: '' },
 
-  { accion: 'ingreso_admin', grupo: 'Administración', corto: 'Entró a administración', dice: 'Entró a administración', tono: '' },
-  { accion: 'admin_clave_mala', grupo: 'Administración', corto: 'Falló la clave', dice: 'Falló la clave de administración', tono: 'mal' },
-  { accion: 'admin_bloqueado', grupo: 'Administración', corto: 'Se bloqueó por fallar', dice: 'Se bloqueó por fallar la clave', tono: 'mal' },
-  { accion: 'fichas_pdf', grupo: 'Administración', corto: 'Descargó fichas', dice: 'Descargó fichas en PDF', tono: '' },
-  { accion: 'fichas_zip', grupo: 'Administración', corto: 'Descargó fichas y documentos', dice: 'Descargó fichas con documentos', tono: '' },
-  { accion: 'exportacion', grupo: 'Administración', corto: 'Exportó todo', dice: 'Exportó todos los expedientes', tono: '' },
-  { accion: 'expediente_capturado', grupo: 'Administración', corto: 'Capturó por alguien', dice: 'Capturó datos en el expediente de alguien más', tono: '' },
-  { accion: 'baja_trabajador', grupo: 'Administración', corto: 'Dio de baja', dice: 'Dio de baja a un trabajador', tono: 'mal' },
-  { accion: 'restaurar_trabajador', grupo: 'Administración', corto: 'Restauró de la papelera', dice: 'Restauró a un trabajador de la papelera', tono: '' },
-  { accion: 'borrado_definitivo', grupo: 'Administración', corto: 'Borró para siempre', dice: 'Borró un expediente para siempre', tono: 'mal' },
+  { accion: 'ingreso_admin', capa: 'roster101', grupo: 'Panel', corto: 'Entró al panel', dice: 'Entró al panel de la empresa', tono: '' },
+  { accion: 'admin_clave_mala', capa: 'roster101', grupo: 'Panel', corto: 'Falló la clave', dice: 'Falló la clave del panel', tono: 'mal' },
+  { accion: 'admin_bloqueado', capa: 'roster101', grupo: 'Panel', corto: 'Se bloqueó por fallar', dice: 'Se bloqueó por fallar la clave', tono: 'mal' },
+  { accion: 'fichas_pdf', capa: 'roster101', grupo: 'Panel', corto: 'Descargó fichas', dice: 'Descargó fichas en PDF', tono: '' },
+  { accion: 'fichas_zip', capa: 'roster101', grupo: 'Panel', corto: 'Descargó fichas y documentos', dice: 'Descargó fichas con documentos', tono: '' },
+  { accion: 'exportacion', capa: 'roster101', grupo: 'Panel', corto: 'Exportó todo', dice: 'Exportó todos los expedientes', tono: '' },
+  { accion: 'baja_trabajador', capa: 'roster101', grupo: 'Panel', corto: 'Dio de baja', dice: 'Dio de baja a un trabajador', tono: 'mal' },
+  { accion: 'restaurar_trabajador', capa: 'roster101', grupo: 'Panel', corto: 'Restauró de la papelera', dice: 'Restauró a un trabajador de la papelera', tono: '' },
+  { accion: 'borrado_definitivo', capa: 'roster101', grupo: 'Panel', corto: 'Borró para siempre', dice: 'Borró un expediente para siempre', tono: 'mal' },
 ];
+
+// Lo que se puede ver desde el panel de la empresa.
+const ACCIONES_EMPRESA = ACCIONES_BITACORA.filter((a) => a.capa === 'empresa');
+
 
 const POR_ACCION = Object.fromEntries(ACCIONES_BITACORA.map((a) => [a.accion, a]));
 
@@ -878,7 +892,7 @@ function detalleLegible(accion, detalle) {
   if (accion === 'aviso_aceptado') return `versión ${d}`;
   return d;
 }
-const ACCIONES_POR_DEFECTO = ACCIONES_BITACORA.filter((a) => a.sola).map((a) => a.accion);
+const ACCIONES_POR_DEFECTO = ACCIONES_EMPRESA.filter((a) => a.sola).map((a) => a.accion);
 
 // Arma la consulta con los filtros que vengan. Devuelve el SQL de condiciones y
 // sus valores, para que la lista y el CSV pregunten exactamente lo mismo.
@@ -888,18 +902,16 @@ function filtrosBitacora(c) {
 
   // Solo se aceptan acciones del catálogo: lo que venga inventado se ignora, y
   // si no queda ninguna en pie se usa la de entrada en vez de enseñarlo todo.
+  // Solo se aceptan acciones de esta capa: "todo" quiere decir todo lo que se
+  // puede ver aquí, no todo lo que hay en la tabla. Lo que venga de fuera del
+  // catálogo se ignora, y si no queda ninguna en pie se usa la de entrada.
+  const visibles = new Set(ACCIONES_EMPRESA.map((a) => a.accion));
   const pedidas = String(c.req.query('acciones') ?? '').split(',').map((a) => a.trim()).filter(Boolean);
-  const todas = pedidas.includes('todo');
-  let acciones = pedidas.filter((a) => POR_ACCION[a]);
-  if (!todas && !acciones.length) acciones = ACCIONES_POR_DEFECTO;
+  let acciones = pedidas.includes('todo') ? [...visibles] : pedidas.filter((a) => visibles.has(a));
+  if (!acciones.length) acciones = ACCIONES_POR_DEFECTO;
 
-  const donde = [];
-  const valores = [];
-
-  if (!todas) {
-    donde.push(`accion IN (${acciones.map(() => '?').join(',')})`);
-    valores.push(...acciones);
-  }
+  const donde = [`accion IN (${acciones.map(() => '?').join(',')})`];
+  const valores = [...acciones];
 
   const desde = new Date(Date.now() - dias * 86400_000).toISOString();
   donde.push('cuando >= ?');
@@ -910,7 +922,7 @@ function filtrosBitacora(c) {
     valores.push(`%${q}%`, `%${q}%`);
   }
 
-  return { sql: 'WHERE ' + donde.join(' AND '), valores, acciones: todas ? [] : acciones, q, dias };
+  return { sql: 'WHERE ' + donde.join(' AND '), valores, acciones, q, dias };
 }
 
 app.get('/api/admin/bitacora', exigeAdmin, async (c) => {
@@ -937,7 +949,7 @@ app.get('/api/admin/bitacora', exigeAdmin, async (c) => {
     dias: f.dias,
     // El catálogo viaja con la respuesta para que las casillas se pinten con lo
     // que el servidor de verdad sabe filtrar, y no con una copia que se despinte.
-    tipos: ACCIONES_BITACORA.map(({ accion, grupo, corto, sola }) => ({ accion, grupo, corto, sola: !!sola })),
+    tipos: ACCIONES_EMPRESA.map(({ accion, grupo, corto, sola }) => ({ accion, grupo, corto, sola: !!sola })),
   });
 });
 

@@ -1,4 +1,4 @@
-/* roster101 — Portal de Trabajadores */
+/* roster101 — Portal del trabajador */
 'use strict';
 
 const $ = (s) => document.querySelector(s);

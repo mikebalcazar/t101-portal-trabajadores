@@ -1,4 +1,4 @@
-/* roster101 — Administración */
+/* roster101 — Panel de la empresa */
 'use strict';
 const $ = (s) => document.querySelector(s);
 

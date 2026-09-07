@@ -1,4 +1,4 @@
-/* roster101 — panel de la plataforma.
+/* roster101 — el panel maestro, el nuestro.
  *
  * Aquí se ve cada empresa que está entrando: qué le falta, qué entregó y, cuando
  * ya está revisada, el botón que le abre su portal. Ese botón dispara el mismo

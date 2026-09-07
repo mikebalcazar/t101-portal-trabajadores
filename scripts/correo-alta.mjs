@@ -24,9 +24,9 @@ const html = `<!doctype html><html lang="es"><body style="margin:0;background:#f
   <tr><td style="padding:28px 26px">
     <h1 style="margin:0 0 14px;font-size:20px">Su portal ya está arriba, ${EMPRESA}</h1>
     <p style="font-size:15px;line-height:1.6;margin:0 0 18px">Sus trabajadores ya pueden entrar a registrar sus datos y subir sus documentos desde el celular.</p>
-    <p style="font-size:15px;margin:0 0 6px"><strong>Portal para los trabajadores</strong><br>
+    <p style="font-size:15px;margin:0 0 6px"><strong>Portal del trabajador</strong><br>
       <a href="${LIGA_PORTAL}">${LIGA_PORTAL}</a></p>
-    <p style="font-size:15px;margin:14px 0 6px"><strong>Panel de administración</strong><br>
+    <p style="font-size:15px;margin:14px 0 6px"><strong>Panel de la empresa</strong><br>
       <a href="${LIGA_PORTAL}/admin">${LIGA_PORTAL}/admin</a></p>
     <p style="font-size:15px;margin:14px 0 0">Clave del panel:</p>
     <div style="font-size:22px;font-weight:800;letter-spacing:2px;color:#0381C2;background:#f0f7fb;border-radius:10px;padding:14px;text-align:center;margin:6px 0 0">${CLAVE_ADMIN}</div>

@@ -4,6 +4,7 @@ Cada renglón es una versión publicada. La más reciente hasta arriba.
 
 | Fecha | Versión | Qué cambió |
 |---|---|---|
+| 2026-09-07 | 0.7.0 | **Cada pantalla tiene su nombre, y cada movimiento su capa.** Se llaman *portal del trabajador*, *panel de la empresa* y *panel maestro* —arriba está la tabla de quién entra a cuál—, y así se dicen ahora en los títulos, las barras, los pies y el correo de bienvenida. En la bitácora, cada movimiento sabe a qué capa pertenece: lo del portal y los expedientes se lee en el panel de la empresa; lo del panel —quién entró, quién descargó, quién dio de baja— se sigue apuntando igual pero ya no se enseña ahí. "Capturaron por él" se queda con los expedientes, a nombre del trabajador, porque es alguien escribiendo en su hoja. |
 | 2026-09-07 | 0.6.1 | **Vista compacta: la lista para pasar lista.** Un interruptor arriba cambia entre *Completa* —la de siempre, para revisar a alguien— y *Compacta*, que deja nada más el nombre, empezando por apellidos, y el RFC pegado a un lado. El renglón pasa de 63 a 46 píxeles y en el teléfono la tarjeta de 165 a 92, así que cabe casi el doble de gente en la pantalla. Sigue sirviendo para lo mismo: se palomea para las fichas, el nombre abre el expediente y el buscador encuentra por RFC. Se acuerda de cuál se dejó puesta. De paso: un error al abrir el panel ya no se traga en silencio —un panel en blanco se veía igual que uno que no ha entrado—. |
 | 2026-09-07 | 0.6.0 | **El expediente de cada quien se abre desde el panel, y ya se ve qué le falta de escribir.** Antes el "Faltan 9" contaba nada más los papeles: alguien podía tener su carátula bancaria subida y ni un dato de su cuenta capturado, y el panel no lo decía. Ahora cuenta las dos cosas y las separa: *por escribir* y *por entregar*. Tocando el nombre de la persona —o con doble clic en su renglón— se abre su formato tal como ella lo ve, con lo que escribió, lo que le falta marcado en rojo, y sus documentos. Desde ahí se puede capturar por ella lo que haga falta, y queda apuntado en la bitácora con el nombre de a quién se le tocó el expediente. **Los documentos se ven, no se tocan:** subirlos y borrarlos sigue siendo cosa suya, y el servidor no tiene ninguna ruta que permita otra cosa. El aviso de privacidad tampoco se puede aceptar por nadie. |
 | 2026-09-07 | 0.5.1 | **La bitácora se ve completa y se filtra con palomitas.** Ahora sale todo en un solo hilo —quién pidió su código, quién usó su acceso, quién lo escribió mal, quién guardó y quién subió qué— y son 18 casillas las que deciden qué se ve, agrupadas en accesos, expedientes y administración. De entrada viene prendida nada más una, la que casi siempre se consulta: quién pidió su código. Hay atajos de *nada · todo · solo quién pidió su código*, y lo palomeado se recuerda para la próxima vez. Los detalles se leen completos: el documento dice "Constancia NSS" y no `nss`. |
@@ -25,6 +26,37 @@ Cada renglón es una versión publicada. La más reciente hasta arriba.
 | 2026-09-02 | 0.1.3 | **Primer despliegue automático desde GitHub Actions.** Además, en el mismo empujón: identificación en dos fotos (frente y reverso, cada una obligatoria); **fichas en PDF** de los trabajadores que se palomeen, con los datos bancarios aparte; **papelera de 30 días**, que aparta en vez de borrar y barre sola con el reloj de Cloudflare; **freno contra adivinar la clave de administración** (3 fallos y bloqueo de 15 min, 1 h, 4 h, 24 h, por dirección); **datos que no se repiten** entre expedientes (CURP, NSS, RFC, celular y correo); y la indicación de cada documento ya se lee completa en el celular, sin recortarse. |
 | 2026-09-01 | 0.1.2 | Aviso de privacidad obligatorio, guardado por partes y cámara a pantalla completa. |
 | 2026-09-01 | 0.1.0 | Primera publicación del portal. |
+
+---
+
+## Cómo se llama cada cosa
+
+**roster101** es la plataforma. **taller101** es dos cosas a la vez: quien la
+hizo, y la primera empresa que la usa. Cada empresa cliente tiene su propio
+Worker, su propia base y su propio bucket.
+
+Hay cuatro pantallas y conviene llamarlas siempre igual:
+
+| | Se llama | Quién entra | Dónde vive |
+|---|---|---|---|
+| 1 | **Portal del trabajador** | el trabajador | `/` del Worker de su empresa |
+| 2 | **Panel de la empresa** | quien lleva administración en esa empresa | `/admin` del mismo Worker |
+| 3 | **Panel maestro** | nosotros, los dueños de roster101 | `/roster` en central |
+| — | **Registro de empresa** | el representante de una empresa nueva | `/` en central |
+
+El registro no es una capa aparte: es la puerta por la que una empresa entra al
+panel maestro antes de tener portal propio.
+
+**Qué ve cada quien.** El trabajador, nada más lo suyo. El panel de la empresa,
+todo lo de sus trabajadores —y nada de otra empresa, porque ni siquiera están en
+la misma base—. El panel maestro, las empresas: quién va entrando, qué le falta
+y a quién ya se le abrió su portal.
+
+En la bitácora, cada movimiento trae su capa. Los del portal y los expedientes
+se leen en el panel de la empresa. Los del panel —quién entró, quién descargó,
+quién dio de baja— se apuntan igual, pero no se enseñan ahí: el panel de la
+empresa no tiene por qué llenarse de renglones de "entró a administración"
+cuando lo que se viene a ver es a quién se le mandó su código.
 
 ---
 
