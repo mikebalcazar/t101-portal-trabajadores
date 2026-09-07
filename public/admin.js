@@ -1,4 +1,4 @@
-/* Roster101 — Administración */
+/* roster101 — Administración */
 'use strict';
 const $ = (s) => document.querySelector(s);
 
