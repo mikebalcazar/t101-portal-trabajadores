@@ -4,7 +4,7 @@
 import { Hono } from 'hono';
 import {
   ahora, uuid, firmar, verificar, sha256, igualSeguro,
-  cookie, leerCookie, normalizaEmail, limpiaNombre, csvCampo,
+  cookie, leerCookie, normalizaEmail, limpiaNombre, csvCampo, empresaDe,
 } from './lib.js';
 import {
   revisaExpediente, emailValido,
@@ -152,7 +152,7 @@ app.post('/api/codigo', async (c) => {
   // Sin llave de correo no hay forma de entregar el código: mejor decirlo de frente
   // que dejar al trabajador esperando un correo que nunca va a llegar.
   if (!c.env.RESEND_API_KEY && c.env.MODO_PRUEBA !== '1') {
-    return err(c, 'El portal todavía no está habilitado para recibir registros. Avísale a administración de Taller 101.', 503);
+    return err(c, `El portal todavía no está habilitado para recibir registros. Avísale a administración de ${empresaDe(c.env)}.`, 503);
   }
 
   const previo = await c.env.DB.prepare('SELECT enviado_en FROM codigos WHERE email = ?').bind(email).first();
@@ -168,7 +168,7 @@ app.post('/api/codigo', async (c) => {
      ON CONFLICT(email) DO UPDATE SET hash=excluded.hash, expira=excluded.expira, intentos=0, enviado_en=excluded.enviado_en`
   ).bind(email, hash, t + 10 * 60_000, t).run();
 
-  const msg = correoCodigo(codigo);
+  const msg = correoCodigo(empresaDe(c.env), codigo);
   try {
     await enviarCorreo(c.env, { para: email, ...msg });
   } catch (e) {
@@ -281,7 +281,7 @@ app.put('/api/yo', exigeTrabajador, exigeAviso, async (c) => {
 
   const choques = await choquesDe(c.env, s.id, limpio);
   const avisoChoque = choques.length
-    ? `Ya hay otro expediente con ${enumera(choques.map((ch) => ch.nombre))}. Revisa que no sea un error de dedo; si el dato es correcto, avísale a administración de Taller 101.`
+    ? `Ya hay otro expediente con ${enumera(choques.map((ch) => ch.nombre))}. Revisa que no sea un error de dedo; si el dato es correcto, avísale a administración de ${empresaDe(c.env)}.`
     : '';
   const erroresChoque = {};
   for (const ch of choques) erroresChoque[ch.campo] = ch.mensaje;
@@ -316,9 +316,9 @@ app.put('/api/yo', exigeTrabajador, exigeAviso, async (c) => {
   if (ok && !parcial) {
     c.executionCtx.waitUntil((async () => {
       try {
-        await enviarCorreo(c.env, { para: t.email, ...correoConfirmacion(t, faltantes) });
+        await enviarCorreo(c.env, { para: t.email, ...correoConfirmacion(empresaDe(c.env), t, faltantes) });
         if (c.env.CORREO_AVISOS) {
-          await enviarCorreo(c.env, { para: c.env.CORREO_AVISOS, ...correoAvisoAdmin(t, faltantes) });
+          await enviarCorreo(c.env, { para: c.env.CORREO_AVISOS, ...correoAvisoAdmin(empresaDe(c.env), t, faltantes) });
         }
       } catch (e) { console.error('correo confirmación', e); }
     })());
@@ -537,6 +537,10 @@ const TOPE_FICHAS = 50;
 // en memoria para armar el ZIP. De golpe salen tandas más chicas.
 const TOPE_FICHAS_CON_DOCS = 15;
 
+// Las cabeceras HTTP solo aguantan ASCII: los acentos del nombre de la empresa
+// se quitan ahí, no en el archivo que ve la gente.
+const soloAscii = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '').trim();
+
 const IDS_CAMPOS = new Set(CAMPOS_FICHA.map((x) => x.id));
 
 app.post('/api/admin/fichas', exigeAdmin, async (c) => {
@@ -594,12 +598,12 @@ app.post('/api/admin/fichas', exigeAdmin, async (c) => {
 
   const fecha = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
   const pdf = armaFichas(gente, {
-    empresa: c.env.EMPRESA || 'Taller 101',
+    empresa: empresaDe(c.env),
     campos, fecha,
   });
 
   const hoy = new Date().toISOString().slice(0, 10);
-  const nombrePdf = nombreArchivoFichas(gente, hoy);
+  const nombrePdf = nombreArchivoFichas(gente, hoy, 'pdf', empresaDe(c.env));
 
   // Sin documentos se baja el PDF y ya. Con documentos, el PDF se mete en un ZIP
   // junto con un ZIP por trabajador: es la única forma de bajar varios archivos
@@ -614,8 +618,8 @@ app.post('/api/admin/fichas', exigeAdmin, async (c) => {
       )
     : pdf;
 
-  const nombre = conDocs ? nombreArchivoFichas(gente, hoy, 'zip') : nombrePdf;
-  const simple = nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '');
+  const nombre = conDocs ? nombreArchivoFichas(gente, hoy, 'zip', empresaDe(c.env)) : nombrePdf;
+  const simple = soloAscii(nombre);
   await registra(c.env, 'admin', conDocs ? 'fichas_zip' : 'fichas_pdf',
     `${gente.length} ficha(s) con: ${campos.join(', ') || 'solo el nombre'}${conDocs ? ' + documentos' : ''}`);
 
@@ -739,7 +743,7 @@ app.get('/api/admin/exportar', exigeAdmin, async (c) => {
   return new Response(zip, {
     headers: {
       'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="Expedientes Taller 101 ${fecha}.zip"`,
+      'Content-Disposition': `attachment; filename="${soloAscii(`Expedientes ${empresaDe(c.env)} ${fecha}`)}.zip"`,
     },
   });
 });
@@ -747,7 +751,10 @@ app.get('/api/admin/exportar', exigeAdmin, async (c) => {
 app.get('/api/admin/tabla.csv', exigeAdmin, async (c) => {
   const csv = await exportarCsv(c.env);
   return new Response('﻿' + csv, {
-    headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="Trabajadores Taller 101.csv"' },
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${soloAscii(`Trabajadores ${empresaDe(c.env)}`)}.csv"`,
+    },
   });
 });
 

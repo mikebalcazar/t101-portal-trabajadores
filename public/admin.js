@@ -235,7 +235,7 @@ async function pedirFichas() {
   const cd = r.headers.get('Content-Disposition') || '';
   const m = /filename\*=UTF-8''([^;]+)/.exec(cd);
   const zip = $('#con-documentos').checked;
-  const nombre = m ? decodeURIComponent(m[1]) : (zip ? 'Fichas Taller 101.zip' : 'Ficha Taller 101.pdf');
+  const nombre = m ? decodeURIComponent(m[1]) : (zip ? 'Fichas.zip' : 'Ficha.pdf');
   return { blob: await r.blob(), nombre, tipo: zip ? 'application/zip' : 'application/pdf' };
 }
 
@@ -281,11 +281,23 @@ $('#btn-zip').addEventListener('click', async () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Expedientes Taller 101 ${new Date().toISOString().slice(0,10)}.zip`;
+    // El nombre lo manda el servidor, que es quien sabe de qué empresa es.
+    const cd = r.headers.get('Content-Disposition') || '';
+    const m = /filename="([^"]+)"/.exec(cd);
+    a.download = m ? m[1] : `Expedientes ${new Date().toISOString().slice(0,10)}.zip`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   } catch (e) { alert(e.message); }
   finally { b.disabled = false; b.textContent = txt; }
 });
 
-(async () => { try { await abrir(); } catch {} })();
+// El nombre de la empresa en los pies de página sale de su configuración.
+async function pintarMarca() {
+  try {
+    const c = await (await fetch('/api/config', { credentials: 'same-origin' })).json();
+    const nombre = c.razon_social || c.empresa;
+    if (nombre) document.querySelectorAll('.eco-empresa').forEach((e) => { e.textContent = nombre; });
+  } catch { /* si no se alcanza, se queda el texto genérico */ }
+}
+
+(async () => { pintarMarca(); try { await abrir(); } catch {} })();

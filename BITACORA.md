@@ -4,6 +4,7 @@ Cada renglón es una versión publicada. La más reciente hasta arriba.
 
 | Fecha | Versión | Qué cambió |
 |---|---|---|
+| 2026-09-07 | 0.3.0 | **El nombre del cliente sale de su configuración, no del código.** Estaba escrito a mano en 21 lugares —correos, nombres de archivo, textos del ZIP, mensajes de error, pies de página y hasta la marca del documento bancario que firma el trabajador—. Ahora todo eso lee `EMPRESA` / `RAZON_SOCIAL`. Probado cambiando la configuración a otra empresa: correos, archivos y documentos salen con el nombre nuevo. |
 | 2026-09-07 | 0.2.1 | El nombre se escribe **roster101**, todo en minúsculas, en todos lados. |
 | 2026-09-07 | 0.2.0 | **La plataforma se llama roster101.** El logotipo es el de Taller 101 con la palabra cambiada: misma tipografía (Sansation Bold), mismo tamaño e interletrado, convertida a trazos; el anillo, el "101" y la raya son los vectores del archivo de marca. Como "roster" es más ancha que "taller", el conjunto se volvió a centrar y la raya se alargó lo mismo que creció la palabra. Taller 101 sigue siendo la empresa: es la que aparece en el aviso de privacidad, en los correos, en las fichas y en los expedientes. |
 | 2026-09-04 | 0.1.11 | **Parentesco del contacto de emergencia**, obligatorio: se escoge de una lista (madre, padre, esposa, hijo, hermano…). Sale en la ficha en PDF, en el CSV y en el panel, junto al nombre. Quien ya estaba completo pasa a pendiente hasta que lo indique. |
@@ -51,6 +52,15 @@ a entrar con su correo. Molesto una vez, nada más.
 - El portal responde y trae las cuatro cosas: identificación en dos fotos, aviso de
   privacidad, guardado automático y cámara a pantalla completa.
 
+## Un cliente nuevo, hoy
+
+roster101 es la plataforma; la empresa que la renta se configura en
+`wrangler.toml` (`EMPRESA`, `RAZON_SOCIAL`, `DOMICILIO`, `CORREO_PRIVACIDAD`,
+`CORREO_REMITENTE`, `CORREO_AVISOS`). Ningún texto del programa nombra ya a una
+empresa en particular. Montar un cliente es: cambiar esas líneas, crear su base
+D1 y su bucket R2, y publicar con el token de Cloudflare de ese cliente — cada
+cliente en su propio Worker, con sus propios datos.
+
 ## Cambios a la base de datos
 
 `schema.sql` solo crea lo que no existe: una columna nueva sobre una tabla que
@@ -82,3 +92,11 @@ encontró lo de las casillas, que a simple vista parecía un problema de diseño
    secreto `CLAVE_ADMIN`, se dispara el workflow a mano y se actualiza `llaves.env`.
    Aprovechar para poner una larga.
 5. Prueba con un trabajador de verdad antes de repartir la liga.
+6. **Administrador de clientes.** Un panel de roster101 —arriba de los portales
+   de cada empresa— para dar de alta una empresa, mandarle a su correo su
+   usuario y un formulario donde llene sus datos (razón social, CSF, domicilio,
+   aviso de privacidad, remitente de correos). Falta decidir lo de fondo: si
+   cada cliente sigue teniendo su propio Worker y su propia base —lo de hoy, más
+   aislado, pero hay que provisionar— o si todos comparten uno con el id de la
+   empresa en cada renglón. Esa decisión cambia el esquema completo, así que va
+   antes que el código.

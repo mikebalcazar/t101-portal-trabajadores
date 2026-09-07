@@ -84,6 +84,11 @@ export function normalizaEmail(e) {
 }
 
 // Quita acentos y caracteres inválidos para nombres de carpeta/archivo
+// El nombre del cliente que está usando la plataforma. roster101 es el programa;
+// la empresa que lo renta se configura en wrangler.toml y es la que tiene que
+// salir en los correos, en los archivos y en los documentos que firma la gente.
+export const empresaDe = (env) => env.EMPRESA || env.RAZON_SOCIAL || 'la empresa';
+
 export function limpiaNombre(txt) {
   return String(txt || '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')

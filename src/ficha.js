@@ -11,7 +11,7 @@
 
 const A4 = { ancho: 595.28, alto: 841.89 };
 const MARGEN = 48;
-const AZUL = [0 / 255, 128 / 255, 193 / 255];   // #0080C1, el azul de Taller 101
+const AZUL = [0 / 255, 128 / 255, 193 / 255];   // #0080C1, el azul de la marca
 const TINTA = [0.13, 0.14, 0.15];
 const TENUE = [0.45, 0.47, 0.49];
 const LINEA = [0.85, 0.86, 0.87];
@@ -313,7 +313,7 @@ function dibujaFicha(t, opciones) {
 /* ── el PDF completo ── */
 
 export function armaFichas(trabajadores, opciones = {}) {
-  const empresa = opciones.empresa || 'Taller 101';
+  const empresa = opciones.empresa || 'la empresa';
   const fecha = opciones.fecha || new Date().toISOString().slice(0, 10);
   // Sin lista de campos, la ficha sale como salía siempre.
   const campos = new Set(opciones.campos || CAMPOS_POR_DEFECTO);
@@ -407,10 +407,10 @@ export function armaFichas(trabajadores, opciones = {}) {
   return doc.junta();
 }
 
-export function nombreArchivoFichas(trabajadores, fecha, extension = 'pdf') {
+export function nombreArchivoFichas(trabajadores, fecha, extension = 'pdf', empresa = 'Fichas') {
   if (trabajadores.length === 1) {
     const limpio = nombreCompleto(trabajadores[0]).replace(/[\\/:*?"<>|]/g, '').trim();
     return `Ficha ${limpio}.${extension}`;
   }
-  return `Fichas Taller 101 ${fecha} (${trabajadores.length}).${extension}`;
+  return `Fichas ${empresa} ${fecha} (${trabajadores.length}).${extension}`;
 }

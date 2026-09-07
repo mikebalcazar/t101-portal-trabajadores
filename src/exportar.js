@@ -1,6 +1,6 @@
 // Exportación: ZIP con una carpeta por trabajador + tabla CSV
 import { zipSync, strToU8 } from 'fflate';
-import { limpiaNombre, csvCampo } from './lib.js';
+import { limpiaNombre, csvCampo, empresaDe } from './lib.js';
 import { NOMBRES_DOC, DOCS_OBLIGATORIOS } from './validar.js';
 
 const COLUMNAS = [
@@ -101,6 +101,7 @@ export async function archivosDe(env, docs) {
 // como los subió, cada uno con su nombre. Todo eso viaja dentro de un ZIP, que
 // es la única forma de bajar varios archivos de una sola vez.
 export async function armaZipFichas(env, gente, docsDe, pdfTodos, nombrePdf) {
+  const empresa = empresaDe(env);
   const arbol = {};
   const usados = new Set();
   const sinNada = [];
@@ -119,7 +120,7 @@ export async function armaZipFichas(env, gente, docsDe, pdfTodos, nombrePdf) {
   }
 
   arbol['LEEME.txt'] = strToU8('\ufeff' +
-    'TALLER 101 — Fichas de trabajadores\r\n\r\n' +
+    `${empresa.toUpperCase()} — Fichas de trabajadores\r\n\r\n` +
     `"${nombrePdf}" trae una hoja por trabajador.\r\n` +
     'Cada ZIP con nombre de persona trae los documentos que esa persona subió.\r\n' +
     (sinNada.length ? `Sin documentos todavía: ${sinNada.join(', ')}.\r\n` : '') +
@@ -131,6 +132,7 @@ export async function armaZipFichas(env, gente, docsDe, pdfTodos, nombrePdf) {
 }
 
 export async function armaZip(env) {
+  const empresa = empresaDe(env);
   const { trabajadores, porTrab } = await leerTodo(env);
   const arbol = {};
   const usadas = new Set();
@@ -146,14 +148,14 @@ export async function armaZip(env) {
 
     // Ficha de datos dentro de la carpeta del trabajador
     const ficha = COLUMNAS.map(([k, etq]) => `${etq}: ${t[k] ?? ''}`).join('\r\n');
-    contenido['Datos del trabajador.txt'] = strToU8('﻿' + `TALLER 101 — EXPEDIENTE\r\n\r\n${ficha}\r\n`);
+    contenido['Datos del trabajador.txt'] = strToU8('﻿' + `${empresa.toUpperCase()} — EXPEDIENTE\r\n\r\n${ficha}\r\n`);
 
     arbol[carpeta] = contenido;
   }
 
   arbol['Tabla de trabajadores.csv'] = strToU8('﻿' + armaCsv(trabajadores, porTrab));
   arbol['LEEME.txt'] = strToU8(
-    '﻿TALLER 101 — Expedientes de trabajadores\r\n\r\n' +
+    `﻿${empresa.toUpperCase()} — Expedientes de trabajadores\r\n\r\n` +
     'Una carpeta por trabajador (APELLIDOS NOMBRE) con sus documentos.\r\n' +
     '"Tabla de trabajadores.csv" abre en Excel; la columna "Carpeta" dice a qué carpeta corresponde cada renglón.\r\n' +
     `Generado: ${new Date().toISOString()}\r\n`

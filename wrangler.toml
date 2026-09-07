@@ -24,8 +24,11 @@ EMPRESA = "Taller 101"
 CORREO_REMITENTE = "Taller 101 <expedientes@envios.taller101.mx>"
 CORREO_AVISOS = "mike@forespot.com"
 
-# Datos del responsable, para el aviso de privacidad. Cambiar aquí = cambiar el
-# aviso completo; es lo único que hay que tocar para montarle el portal a otro negocio.
+# La empresa que está usando roster101. De aquí sale su nombre en TODAS partes:
+# el aviso de privacidad, los correos que reciben sus trabajadores, los nombres
+# de los archivos que se descargan, la ficha en PDF y el documento bancario que
+# se firma. Montarle el portal a otro cliente es cambiar estas líneas, crear su
+# base D1 y su bucket R2, y publicar con el token de Cloudflare de ese cliente.
 RAZON_SOCIAL = "Taller 101"
 DOMICILIO = "5 de Mayo 60, San Nicolás Totolapan, La Magdalena Contreras, C.P. 10900, Ciudad de México"
 CORREO_PRIVACIDAD = "mike@forespot.com"
@@ -34,7 +37,7 @@ AVISO_VERSION = "2026-09-03"
 # Versión del portal. Se ve arriba a la derecha en todas las pantallas; se sube
 # aquí en cada publicación y es la que hay que preguntar cuando alguien reporta
 # una falla, para saber qué estaba usando.
-PORTAL_VERSION = "0.2.1"
+PORTAL_VERSION = "0.3.0"
 
 # Barrido diario de la papelera: a las 4:00 UTC (10 u 11 de la noche en el centro
 # de México, según el horario). Borra de verdad lo que ya cumplió 30 días.

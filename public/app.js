@@ -217,7 +217,7 @@ Posesión de los Particulares.</p>`;
 async function mostrarAviso(soloLectura = false) {
   const c = await cargarConfig();
   $('#texto-aviso').innerHTML = textoAviso(c);
-  $('#eco-empresa').textContent = c.razon_social || c.empresa;
+  $$('.eco-empresa, #eco-empresa').forEach((e) => { e.textContent = c.razon_social || c.empresa; });
   $('#aviso-error').textContent = '';
   $('#chk-aviso').checked = false;
   $('#acceso').classList.add('oculto');
@@ -731,10 +731,23 @@ function dibujarLienzo() {
 
   // encabezado de marca
   ctx.fillStyle = AZUL; ctx.fillRect(0, 0, W, 44);
-  ctx.fillStyle = '#fff'; ctx.font = '800 17px Raleway, sans-serif';
-  ctx.fillText('TALLER 101', 16, 28);
+  // El documento que firma el trabajador lleva el nombre de su empresa, no el de
+  // la plataforma. Como cada empresa se llama distinto, el encabezado se mide:
+  // si el nombre y el título caben en un renglón van juntos; si el nombre es
+  // largo, el título se baja, en vez de encimarse.
+  const marca = String((config && (config.empresa || config.razon_social)) || '').toUpperCase();
+  const TITULO = 'AUTORIZACIÓN DE PAGO POR TRANSFERENCIA';
+  ctx.fillStyle = '#fff';
+  ctx.font = '800 17px Raleway, sans-serif';
+  const anchoMarca = ctx.measureText(marca).width;
   ctx.font = '600 11px Raleway, sans-serif';
-  ctx.fillText('AUTORIZACIÓN DE PAGO POR TRANSFERENCIA', 118, 28);
+  const anchoTitulo = ctx.measureText(TITULO).width;
+  const enUnRenglon = 16 + anchoMarca + 14 + anchoTitulo <= W - 12;
+
+  ctx.font = '800 17px Raleway, sans-serif';
+  ctx.fillText(marca, 16, enUnRenglon ? 28 : 20);
+  ctx.font = '600 11px Raleway, sans-serif';
+  ctx.fillText(TITULO, enUnRenglon ? 16 + anchoMarca + 14 : 16, enUnRenglon ? 28 : 36);
 
   let y = 72;
   ctx.fillStyle = TINTA; ctx.font = '600 12px Raleway, sans-serif';
@@ -946,17 +959,22 @@ $('#f-clabe').addEventListener('blur', (e) => {
 // La versión se pinta antes que nada y se queda arriba a la derecha todo el
 // tiempo: en la pantalla de acceso, en el aviso y mientras llena el formulario.
 // Así, si alguien reporta una falla, se sabe con qué versión la vio.
-async function pintarVersion() {
-  const caja = $('#version');
-  if (!caja) return;
+// La versión y el nombre de la empresa se pintan antes que nada: la versión
+// arriba a la derecha, el nombre en los pies de página y en el documento
+// bancario que se firma. roster101 es la plataforma; la empresa la pone quien
+// la esté usando, y sale de su configuración.
+async function pintarMarca() {
   try {
     const c = await cargarConfig();
-    if (c && c.version) { caja.textContent = 'v' + c.version; caja.classList.remove('oculto'); }
-  } catch { /* si no se alcanza la configuración, mejor nada que un número inventado */ }
+    const caja = $('#version');
+    if (caja && c && c.version) { caja.textContent = 'v' + c.version; caja.classList.remove('oculto'); }
+    const nombre = (c && (c.razon_social || c.empresa)) || '';
+    if (nombre) $$('.eco-empresa, #eco-empresa').forEach((e) => { e.textContent = nombre; });
+  } catch { /* sin configuración, mejor nada que un dato inventado */ }
 }
 
 (async function arranque() {
-  pintarVersion();
+  pintarMarca();
   try { await abrirPanel(); }
   catch { /* sin sesión: se queda en la pantalla de acceso */ }
 })();
