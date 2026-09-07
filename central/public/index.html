@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>roster101 — Registro de su empresa</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Raleway:wght@500;600;700;800&display=swap">
+<link rel="stylesheet" href="/estilos.css">
+</head>
+<body>
+
+<header class="barra">
+  <div class="logo"><img src="/logo.svg" alt="roster101"><span class="solo-grande">Registro</span></div>
+  <div class="der">
+    <span id="quien"></span>
+    <span id="version" class="version oculto" title="Versión"></span>
+    <button id="btn-salir" class="oculto">Salir</button>
+  </div>
+</header>
+
+<!-- ═══════════ ACCESO ═══════════ -->
+<main id="acceso" class="envoltura">
+  <div class="tarjeta">
+    <h2>Registren su empresa</h2>
+    <p class="ayuda">Escriban el correo al que les llegó la invitación. Les mandamos un código de 6 dígitos para entrar; no hay contraseña que recordar.</p>
+    <div id="aviso-acceso"></div>
+    <div class="campo">
+      <label for="acc-email">Correo</label>
+      <input id="acc-email" type="email" inputmode="email" autocomplete="email" placeholder="rh@suempresa.mx">
+      <div class="error" data-e="email"></div>
+    </div>
+    <button id="btn-codigo" class="btn primario bloque">Enviarme el código</button>
+
+    <div id="paso-codigo" class="oculto" style="margin-top:18px">
+      <div class="campo">
+        <label for="acc-codigo">Código de 6 dígitos</label>
+        <input id="acc-codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" style="font-size:24px;letter-spacing:8px;text-align:center">
+      </div>
+      <button id="btn-entrar" class="btn primario bloque">Entrar</button>
+    </div>
+  </div>
+  <p class="pie">roster101 · plataforma de expedientes de trabajadores</p>
+</main>
+
+<!-- ═══════════ REGISTRO ═══════════ -->
+<main id="panel" class="envoltura oculto">
+  <div class="tarjeta">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <h2 style="margin:0">Su registro</h2>
+      <span id="etiqueta-estado" class="etiqueta borrador">Incompleto</span>
+    </div>
+    <div class="barra-progreso"><div id="barra-progreso"></div></div>
+    <p class="ayuda" id="texto-progreso">Cargando…</p>
+    <div id="nota-roster" class="aviso mal oculto"></div>
+    <div class="aviso info">
+      <b>No tienen que terminarlo hoy.</b> Todo lo que escriban se guarda solo. Pueden cerrar y volver con el mismo correo.
+    </div>
+    <div id="aviso-global"></div>
+  </div>
+
+  <!-- Datos -->
+  <section class="tarjeta">
+    <h2><span class="num">1</span> Datos de la empresa</h2>
+    <p class="ayuda">Como aparecen en su Constancia de Situación Fiscal. Con esto se arma el aviso de privacidad que van a firmar sus trabajadores.</p>
+    <div class="rejilla">
+      <div class="campo">
+        <label for="f-nombre">Nombre de la empresa <span class="opc">(el que usa su gente)</span></label>
+        <input id="f-nombre" data-c="nombre" placeholder="Constructora López">
+        <div class="error" data-e="nombre"></div>
+      </div>
+      <div class="campo">
+        <label for="f-razon_social">Razón social</label>
+        <input id="f-razon_social" data-c="razon_social" placeholder="Constructora López SA de CV">
+        <div class="error" data-e="razon_social"></div>
+      </div>
+      <div class="campo">
+        <label for="f-rfc">RFC</label>
+        <input id="f-rfc" data-c="rfc" maxlength="13" placeholder="CLO900101AB1" style="text-transform:uppercase">
+        <div class="error" data-e="rfc"></div>
+      </div>
+      <div class="campo">
+        <label for="f-telefono">Teléfono <span class="opc">(10 dígitos)</span></label>
+        <input id="f-telefono" data-c="telefono" type="tel" inputmode="numeric" maxlength="14" placeholder="55 1234 5678">
+        <div class="error" data-e="telefono"></div>
+      </div>
+    </div>
+    <div class="campo">
+      <label for="f-domicilio">Domicilio fiscal completo</label>
+      <input id="f-domicilio" data-c="domicilio" placeholder="Calle, número, colonia, alcaldía o municipio, C.P. y ciudad">
+      <small class="pista">Va tal cual en el aviso de privacidad de sus trabajadores.</small>
+      <div class="error" data-e="domicilio"></div>
+    </div>
+  </section>
+
+  <!-- Representante -->
+  <section class="tarjeta">
+    <h2><span class="num">2</span> Quién firma por la empresa</h2>
+    <p class="ayuda">La persona que responde por el trato de los datos de sus trabajadores.</p>
+    <div class="rejilla">
+      <div class="campo">
+        <label for="f-representante">Nombre completo</label>
+        <input id="f-representante" data-c="representante" placeholder="María López Hernández">
+        <div class="error" data-e="representante"></div>
+      </div>
+      <div class="campo">
+        <label for="f-cargo">Cargo <span class="opc">(opcional)</span></label>
+        <input id="f-cargo" data-c="cargo" placeholder="Administradora única">
+        <div class="error" data-e="cargo"></div>
+      </div>
+    </div>
+    <div class="rejilla">
+      <div class="campo">
+        <label for="f-correo_privacidad">Correo para asuntos de datos personales</label>
+        <input id="f-correo_privacidad" data-c="correo_privacidad" type="email" placeholder="datos@suempresa.mx">
+        <small class="pista">A este correo pueden escribirle sus trabajadores.</small>
+        <div class="error" data-e="correo_privacidad"></div>
+      </div>
+      <div class="campo">
+        <label for="f-correo_avisos">Correo de avisos <span class="opc">(opcional)</span></label>
+        <input id="f-correo_avisos" data-c="correo_avisos" type="email" placeholder="rh@suempresa.mx">
+        <small class="pista">Le llega un aviso cada vez que un trabajador guarda su expediente.</small>
+        <div class="error" data-e="correo_avisos"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Documentos -->
+  <section class="tarjeta">
+    <h2><span class="num">3</span> Documentos de la empresa</h2>
+    <p class="ayuda">Tómenles foto con el celular o suban el archivo. Se aceptan fotos y PDF.</p>
+    <div id="lista-docs"></div>
+    <input id="entrada-doc" type="file" accept="image/*,application/pdf" class="oculto">
+  </section>
+
+  <div class="tarjeta acciones-fin">
+    <button id="btn-terminar" class="btn primario bloque"><span class="solo-grande">Ya terminamos — enviar</span><span class="solo-chico">Ya terminamos</span></button>
+    <button id="btn-avance" class="btn suave bloque"><span class="solo-grande">Guardar y seguir después</span><span class="solo-chico">Guardar</span></button>
+    <p class="pista centrado inicial" id="pista-guardado">Sus datos se guardan solos mientras escriben.</p>
+  </div>
+
+  <p class="pie">roster101 · sus datos se guardan cifrados y solo los ve roster101</p>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>

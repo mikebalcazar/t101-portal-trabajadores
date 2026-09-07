@@ -1,0 +1,35 @@
+# roster101 central: el mostrador de entrada de la plataforma.
+#
+# Aquí una empresa nueva entrega sus datos y sus papeles, y roster101 los revisa
+# y le abre su portal. No guarda expedientes de trabajadores: esos viven en el
+# Worker de cada empresa, cada uno con su base aparte.
+name = "roster101-central"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "roster101-central"
+database_id = "PENDIENTE-CREAR-LA-BASE"
+
+[[r2_buckets]]
+binding = "DOCS"
+bucket_name = "roster101-central-docs"
+
+[vars]
+# Los correos de aquí van firmados por roster101, no por una empresa.
+EMPRESA = "roster101"
+RAZON_SOCIAL = "roster101"
+CORREO_REMITENTE = "roster101 <expedientes@envios.taller101.mx>"
+# A dónde llega el aviso cuando una empresa termina de entregar.
+CORREO_ROSTER = "mike@forespot.com"
+# La liga que va en los correos que se le mandan a las empresas.
+LIGA_CENTRAL = "https://roster101-central.mike-929.workers.dev"
+# El repositorio donde vive el flujo "Alta de cliente" que abre los portales.
+GITHUB_REPO = "mikebalcazar/t101-portal-trabajadores"
+PORTAL_VERSION = "0.1.0"

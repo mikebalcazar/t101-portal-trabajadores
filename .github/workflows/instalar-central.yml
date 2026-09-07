@@ -1,0 +1,160 @@
+# Instala roster101 central: el mostrador donde las empresas nuevas entregan sus
+# datos y sus papeles, y donde roster101 las revisa y les abre su portal.
+#
+# Se corre una sola vez. Crea su base y su bucket, escribe el identificador de la
+# base en central/wrangler.toml, publica, le pone sus secretos y te manda por
+# correo la clave de tu panel.
+name: Instalar roster101 central
+
+on:
+  workflow_dispatch:
+    inputs:
+      simulacro:
+        description: 'Solo decir que haria, sin crear nada'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: instalar-central
+  cancel-in-progress: false
+
+jobs:
+  instalar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Que se va a hacer
+        run: |
+          cat <<FIN
+          Se va a instalar roster101 central:
+            Worker  roster101-central
+            Base    roster101-central
+            Bucket  roster101-central-docs
+            Clave del panel: se genera aqui y se manda por correo
+          FIN
+          if [ '${{ inputs.simulacro }}' = 'true' ]; then
+            echo ''
+            echo 'SIMULACRO: hasta aqui llega. Vuelve a correrlo con el simulacro apagado para hacerlo de verdad.'
+          fi
+
+      - name: Crear la base de datos
+        if: ${{ inputs.simulacro == false }}
+        id: base
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          salida=$(npx wrangler d1 create roster101-central 2>&1 || npx wrangler d1 info roster101-central 2>&1)
+          echo "$salida"
+          id=$(printf '%s' "$salida" | grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+          if [ -z "$id" ]; then echo 'No pude sacar el identificador de la base.' >&2; exit 1; fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+      - name: Crear el bucket
+        if: ${{ inputs.simulacro == false }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler r2 bucket create roster101-central-docs || echo 'El bucket ya existia; se reusa.'
+
+      - name: Apuntar la base en la configuracion
+        if: ${{ inputs.simulacro == false }}
+        run: |
+          set -euo pipefail
+          sed -i 's/^database_id = ".*"$/database_id = "${{ steps.base.outputs.id }}"/' central/wrangler.toml
+          grep -n 'database_id' central/wrangler.toml
+
+      - name: Aplicar el esquema
+        if: ${{ inputs.simulacro == false }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler d1 execute roster101-central --remote --file=./central/schema.sql --yes -c central/wrangler.toml
+
+      - name: Publicar
+        if: ${{ inputs.simulacro == false }}
+        id: publicar
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx wrangler deploy -c central/wrangler.toml | tee /tmp/salida.txt
+          liga=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' /tmp/salida.txt | head -1)
+          if [ -z "$liga" ]; then echo 'No pude sacar la liga.' >&2; exit 1; fi
+          echo "liga=$liga" >> "$GITHUB_OUTPUT"
+          # La liga va en los correos que se les mandan a las empresas.
+          sed -i "s#^LIGA_CENTRAL = \".*\"#LIGA_CENTRAL = \"$liga\"#" central/wrangler.toml
+          npx wrangler deploy -c central/wrangler.toml >/dev/null
+
+      - name: Poner sus secretos
+        if: ${{ inputs.simulacro == false }}
+        id: secretos
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          TOKEN_ALTAS: ${{ secrets.GITHUB_TOKEN_ALTAS }}
+        run: |
+          set -euo pipefail
+          secreto=$(openssl rand -base64 48 | tr -d '\n/+=' | cut -c1-40)
+          clave=$(openssl rand -base64 24 | tr -d '\n/+=' | cut -c1-14)
+          echo "::add-mask::$secreto"
+          echo "::add-mask::$clave"
+          printf '%s' "$secreto"        | npx wrangler secret put SECRETO        -c central/wrangler.toml
+          printf '%s' "$clave"          | npx wrangler secret put CLAVE_ROSTER   -c central/wrangler.toml
+          printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY -c central/wrangler.toml
+          # Con esta llave el panel puede disparar solo el alta de un cliente. Si
+          # no esta, el panel lo dice y ensena los datos para correrla a mano.
+          if [ -n "${TOKEN_ALTAS:-}" ]; then
+            printf '%s' "$TOKEN_ALTAS" | npx wrangler secret put GITHUB_TOKEN -c central/wrangler.toml
+          else
+            echo 'Sin GITHUB_TOKEN_ALTAS: el boton de abrir portal va a pedir correr el alta a mano.'
+          fi
+          echo "clave=$clave" >> "$GITHUB_OUTPUT"
+
+      - name: Comprobar que responde
+        if: ${{ inputs.simulacro == false }}
+        run: |
+          set -euo pipefail
+          sleep 12
+          curl -fsS "${{ steps.publicar.outputs.liga }}/api/salud"
+
+      - name: Mandarte la clave por correo
+        if: ${{ inputs.simulacro == false }}
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          PARA: mike@forespot.com
+          LIGA: ${{ steps.publicar.outputs.liga }}
+          CLAVE: ${{ steps.secretos.outputs.clave }}
+        run: node scripts/correo-central.mjs
+
+      - name: Guardar la configuracion
+        if: ${{ inputs.simulacro == false }}
+        run: |
+          set -euo pipefail
+          git config user.name 'roster101 (instalacion)'
+          git config user.email 'actions@github.com'
+          git add central/wrangler.toml
+          git commit -m "Instalar roster101 central: su base y su liga"
+          git push
+
+      - name: Resumen
+        if: ${{ inputs.simulacro == false }}
+        run: |
+          {
+            echo "## roster101 central instalado"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Tu panel | ${{ steps.publicar.outputs.liga }}/roster |"
+            echo "| Liga para las empresas | ${{ steps.publicar.outputs.liga }} |"
+            echo ""
+            echo "La clave del panel se te mando por correo. No queda escrita aqui."
+          } >> "$GITHUB_STEP_SUMMARY"

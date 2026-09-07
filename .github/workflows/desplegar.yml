@@ -35,6 +35,59 @@ jobs:
           echo "clientes=$(node scripts/clientes.mjs)" >> "$GITHUB_OUTPUT"
           node scripts/clientes.mjs --tabla
 
+  # roster101 central: el mostrador de entrada. Se publica junto con los
+  # clientes, pero solo cuando ya esta instalado —mientras su base no exista,
+  # este trabajo se salta solo en vez de fallar en rojo.
+  central:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: revisar
+        run: |
+          set -euo pipefail
+          if grep -q 'PENDIENTE-CREAR-LA-BASE' central/wrangler.toml; then
+            echo 'instalado=no' >> "$GITHUB_OUTPUT"
+            echo 'roster101 central todavia no esta instalado: correr el flujo "Instalar roster101 central".'
+          else
+            echo 'instalado=si' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.revisar.outputs.instalado == 'si'
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Instalar dependencias
+        if: steps.revisar.outputs.instalado == 'si'
+        run: npm ci
+      - name: Aplicar el esquema
+        if: steps.revisar.outputs.instalado == 'si'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler d1 execute roster101-central --remote --file=./central/schema.sql --yes -c central/wrangler.toml
+      - name: Publicar
+        if: steps.revisar.outputs.instalado == 'si'
+        id: publicar
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          npx wrangler deploy -c central/wrangler.toml | tee /tmp/central.txt
+          liga=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' /tmp/central.txt | head -1)
+          if [ -z "$liga" ]; then echo 'No pude sacar la liga.' >&2; exit 1; fi
+          echo "liga=$liga" >> "$GITHUB_OUTPUT"
+      - name: Actualizar la llave de correo
+        if: steps.revisar.outputs.instalado == 'si'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY -c central/wrangler.toml
+      - name: Revisar que responda
+        if: steps.revisar.outputs.instalado == 'si'
+        run: |
+          set -euo pipefail
+          sleep 12
+          curl -fsS "${{ steps.publicar.outputs.liga }}/api/salud"
+
   publicar:
     needs: lista
     runs-on: ubuntu-latest

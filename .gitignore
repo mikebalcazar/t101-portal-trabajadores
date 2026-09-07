@@ -5,3 +5,4 @@ llaves.env
 .DS_Store
 subir-github.log
 .dev.vars
+central/.dev.vars
