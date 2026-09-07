@@ -32,4 +32,4 @@ CORREO_ROSTER = "mike@forespot.com"
 LIGA_CENTRAL = "https://roster101-central.mike-929.workers.dev"
 # El repositorio donde vive el flujo "Alta de cliente" que abre los portales.
 GITHUB_REPO = "mikebalcazar/t101-portal-trabajadores"
-PORTAL_VERSION = "0.3.0"
+PORTAL_VERSION = "0.3.1"

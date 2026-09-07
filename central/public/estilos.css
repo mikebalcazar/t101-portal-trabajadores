@@ -588,3 +588,30 @@ td .btn.chico{padding:5px 9px;font-size:12.5px}
   .empresa .acciones .btn{width:100%; justify-content:center}
   .acciones-panel .btn{width:100%; justify-content:center}
 }
+
+/* El escáner con el teléfono acostado. Las dos franjas de arriba y abajo se
+   comen casi todo el alto de una pantalla de 390 px, y un marco de hoja carta
+   queda del tamaño de un timbre. Los botones se van al costado derecho: así el
+   marco se lleva todo el alto, que es la medida que manda en una hoja. */
+@media (orientation: landscape) and (max-height: 560px){
+  /* La barra de arriba se mete en la misma columna de la derecha, para que no
+     quede ni un control encima del marco. El título se calla: la indicación ya
+     va en la pista, y aquí el alto es lo que vale. */
+  .esc-arriba{
+    left:auto; right:0; width:132px; height:52px;
+    padding:8px 14px 8px 10px; justify-content:center; background:none;
+  }
+  .esc-titulo{display:none}
+  .esc-abajo{
+    top:52px; left:auto; right:0; bottom:0; width:132px;
+    justify-content:center; gap:12px;
+    padding:14px max(14px, env(safe-area-inset-right)) 14px 14px;
+    background:linear-gradient(to left, rgba(0,0,0,.72), rgba(0,0,0,0));
+  }
+  .esc-obturador{width:64px; height:64px; border-width:4px}
+  .esc-obturador span{width:48px; height:48px}
+  .esc-botones{flex-direction:column; width:auto; max-width:none}
+  .esc-botones .btn{min-height:44px; padding:10px 12px; font-size:13.5px}
+  .esc-etiqueta{font-size:12px; max-width:112px}
+  .esc-pista{bottom:auto; top:8px; left:auto; right:140px; max-width:40%}
+}

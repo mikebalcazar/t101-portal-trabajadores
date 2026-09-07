@@ -31,6 +31,10 @@ window.Escaner = (function () {
   // Proporciones reales: una credencial mide 85.6 × 54 mm y una hoja carta
   // 215.9 × 279.4 mm. El marco de la pantalla usa la misma proporción, así que
   // lo que se ve encuadrado es lo que se guarda.
+  // Lo que se le deja de aire al marco por lado. Lo justo para que se vea que es
+  // un recuadro y no el borde de la pantalla.
+  const MARGEN = 10;
+
   const FORMAS = {
     tarjeta: { razon: 85.6 / 54, vertical: false, salida: 1600, pdf: false },
     hoja: { razon: 215.9 / 279.4, vertical: true, salida: 1700, pdf: true },
@@ -549,11 +553,43 @@ window.Escaner = (function () {
   // recorte sale estirado. Se calcula la caja más grande con esa proporción que
   // cabe en la pantalla, y se vuelve a calcular si el teléfono se gira.
   function medirGuia(forma) {
-    const marco = q('.esc-marco').getBoundingClientRect();
-    if (!marco.width || !marco.height) return;
-    const cabeAncho = marco.width * 0.88;
-    const cabeAlto = marco.height * (forma.vertical ? 0.70 : 0.62);
-    const ancho = Math.min(cabeAncho, cabeAlto * forma.razon);
+    const capaRect = capa.getBoundingClientRect();
+    if (!capaRect.width || !capaRect.height) return;
+
+    // El área que de verdad se puede usar es la pantalla menos lo que tapan los
+    // controles. Con el teléfono parado son dos franjas, arriba y abajo; acostado
+    // los botones se van al costado derecho, y entonces lo que hay que apartar es
+    // ancho, no alto. Se decide midiendo: una franja que cruza toda la pantalla
+    // quita alto; una que no, quita ancho.
+    let arriba = 0, abajo = 0, derecha = 0;
+    const barras = [q('.esc-arriba'), ...capa.querySelectorAll('.esc-abajo')]
+      .filter((e) => e && !e.classList.contains('oculto'));
+
+    for (const barra of barras) {
+      const r = barra.getBoundingClientRect();
+      if (!r.width || !r.height) continue;
+      if (r.width >= capaRect.width * 0.9) {
+        // franja horizontal: quita alto del lado en el que esté pegada
+        if (r.top - capaRect.top < capaRect.height / 2) arriba = Math.max(arriba, r.height);
+        else abajo = Math.max(abajo, r.height);
+      } else {
+        derecha = Math.max(derecha, r.width);
+      }
+    }
+
+    const marco = q('.esc-marco');
+    marco.style.paddingTop = Math.round(arriba) + 'px';
+    marco.style.paddingBottom = Math.round(abajo) + 'px';
+    marco.style.paddingRight = Math.round(derecha) + 'px';
+
+    const libreAncho = capaRect.width - derecha - MARGEN * 2;
+    const libreAlto = capaRect.height - arriba - abajo - MARGEN * 2;
+    if (libreAncho <= 0 || libreAlto <= 0) return;
+
+    // La caja más grande con la proporción del papel que cabe ahí. Se toma la
+    // que mande de las dos: en un teléfono angosto manda el ancho, y acostado
+    // manda el alto.
+    const ancho = Math.min(libreAncho, libreAlto * forma.razon);
     const guia = q('.esc-guia');
     guia.style.width = Math.round(ancho) + 'px';
     guia.style.height = Math.round(ancho / forma.razon) + 'px';

@@ -37,7 +37,7 @@ CORREO_PRIVACIDAD = "privacidad@empresa.mx"
 CORREO_REMITENTE = "Nombre corto <expedientes@envios.taller101.mx>"
 CORREO_AVISOS = "quien-recibe-los-avisos@empresa.mx"
 AVISO_VERSION = "2026-09-03"
-PORTAL_VERSION = "0.8.0"
+PORTAL_VERSION = "0.8.1"
 
 # Barrido diario de la papelera, 4:00 UTC.
 [triggers]
