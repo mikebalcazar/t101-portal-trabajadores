@@ -1,26 +1,48 @@
-# Publica el Portal de Trabajadores en Cloudflare cada vez que cambia el cÃ³digo.
-# Con esto ya no hace falta la computadora de nadie: GitHub lo despliega solo.
+# Publica roster101 en Cloudflare cada vez que cambia el codigo.
 #
-# Requisitos (una sola vez, en Settings â†’ Secrets and variables â†’ Actions):
+# Cada cliente tiene su propio Worker, su propia base D1 y su propio bucket R2.
+# La lista sale de los archivos de la carpeta clientes/ mas el wrangler.toml de
+# la raiz, que es el de Taller 101. Un cliente se da de alta con el flujo
+# "Alta de cliente"; de ahi en adelante se publica solo, junto con los demas.
+#
+# Secretos del repositorio (Settings -> Secrets and variables -> Actions):
 #   CLOUDFLARE_API_TOKEN   token con Workers Scripts:Edit, Workers R2 Storage:Edit,
 #                          D1:Edit, Account Settings:Read, User Details:Read
-#   CLAVE_ADMIN            clave del panel de administraciÃ³n
-#   RESEND_API_KEY         llave de envÃ­o de correos
-#   SECRETO                cadena larga y aleatoria que firma las sesiones
+#   RESEND_API_KEY         llave de envio de correos, la misma para todos
+#   SECRETO / CLAVE_ADMIN  los de Taller 101. Los demas clientes tienen los
+#                          suyos, puestos en su alta y guardados solo en su Worker
 name: Publicar portal
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:        # botÃ³n para publicar a mano desde la web de GitHub
+  workflow_dispatch:
 
 concurrency:
   group: despliegue
   cancel-in-progress: false
 
 jobs:
-  publicar:
+  lista:
     runs-on: ubuntu-latest
+    outputs:
+      clientes: ${{ steps.armar.outputs.clientes }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: armar
+        run: |
+          set -euo pipefail
+          echo "clientes=$(node scripts/clientes.mjs)" >> "$GITHUB_OUTPUT"
+          node scripts/clientes.mjs --tabla
+
+  publicar:
+    needs: lista
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false          # que un cliente con problema no tumbe a los demas
+      matrix:
+        cliente: ${{ fromJson(needs.lista.outputs.clientes) }}
+    name: ${{ matrix.cliente.slug }}
     steps:
       - uses: actions/checkout@v4
 
@@ -35,7 +57,7 @@ jobs:
       - name: Aplicar el esquema de la base
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: npx wrangler d1 execute t101-trabajadores --remote --file=./schema.sql --yes
+        run: npx wrangler d1 execute "${{ matrix.cliente.base }}" --remote --file=./schema.sql --yes -c "${{ matrix.cliente.config }}"
 
       # Lo que schema.sql no puede hacer: agregarle columnas a una tabla que ya
       # existe. D1 lleva la cuenta de cuales ya corrieron, asi que esto se puede
@@ -43,29 +65,45 @@ jobs:
       - name: Aplicar los cambios a la base
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: npx wrangler d1 migrations apply t101-trabajadores --remote
+        run: npx wrangler d1 migrations apply "${{ matrix.cliente.base }}" --remote -c "${{ matrix.cliente.config }}"
 
       - name: Publicar
+        id: publicar
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: npx wrangler deploy
+        run: |
+          set -euo pipefail
+          npx wrangler deploy -c "${{ matrix.cliente.config }}" | tee /tmp/salida.txt
+          # La liga la dice el propio wrangler: asi no hay que traer de ningun
+          # lado el subdominio de la cuenta.
+          liga=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' /tmp/salida.txt | head -1)
+          if [ -z "$liga" ]; then echo 'No pude sacar la liga del portal de la salida de wrangler.' >&2; exit 1; fi
+          echo "liga=$liga" >> "$GITHUB_OUTPUT"
+          echo "Publicado en $liga"
 
-      # Los secretos se vuelven a mandar en cada despliegue: asÃ­ el estado del
-      # Worker siempre coincide con lo que estÃ¡ guardado en GitHub, y si alguien
-      # rota una llave basta cambiar el secreto y volver a publicar.
-      - name: Actualizar secretos del Worker
+      # La llave de correo es de roster101 y es la misma para todos: se vuelve a
+      # mandar en cada despliegue para que rotarla sea cambiar el secreto y
+      # volver a publicar. Los otros dos secretos son de cada cliente y se
+      # ponen en su alta; aqui solo se refrescan los de Taller 101.
+      - name: Actualizar la llave de correo
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY -c "${{ matrix.cliente.config }}"
+
+      - name: Actualizar los secretos de Taller 101
+        if: ${{ matrix.cliente.raiz }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           SECRETO: ${{ secrets.SECRETO }}
           CLAVE_ADMIN: ${{ secrets.CLAVE_ADMIN }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
-          set -e
-          printf '%s' "$SECRETO"        | npx wrangler secret put SECRETO
-          printf '%s' "$CLAVE_ADMIN"    | npx wrangler secret put CLAVE_ADMIN
-          printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY
+          set -euo pipefail
+          printf '%s' "$SECRETO"     | npx wrangler secret put SECRETO     -c "${{ matrix.cliente.config }}"
+          printf '%s' "$CLAVE_ADMIN" | npx wrangler secret put CLAVE_ADMIN -c "${{ matrix.cliente.config }}"
 
       - name: Revisar que el portal responda
         run: |
+          set -euo pipefail
           sleep 12
-          curl -fsS https://t101-portal.mike-929.workers.dev/api/salud
+          curl -fsS "${{ steps.publicar.outputs.liga }}/api/salud"

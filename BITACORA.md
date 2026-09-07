@@ -52,14 +52,27 @@ a entrar con su correo. Molesto una vez, nada más.
 - El portal responde y trae las cuatro cosas: identificación en dos fotos, aviso de
   privacidad, guardado automático y cámara a pantalla completa.
 
-## Un cliente nuevo, hoy
+## Un cliente nuevo
 
-roster101 es la plataforma; la empresa que la renta se configura en
-`wrangler.toml` (`EMPRESA`, `RAZON_SOCIAL`, `DOMICILIO`, `CORREO_PRIVACIDAD`,
-`CORREO_REMITENTE`, `CORREO_AVISOS`). Ningún texto del programa nombra ya a una
-empresa en particular. Montar un cliente es: cambiar esas líneas, crear su base
-D1 y su bucket R2, y publicar con el token de Cloudflare de ese cliente — cada
-cliente en su propio Worker, con sus propios datos.
+Cada empresa tiene **su propio Worker, su propia base D1 y su propio bucket R2**.
+Los datos de una no se cruzan con los de otra ni por una consulta mal escrita:
+sencillamente no están en la misma base.
+
+Para dar de alta una empresa: **Actions → Alta de cliente → Run workflow**. Pide
+el nombre corto, el nombre de la empresa, su razón social, su domicilio y tres
+correos. Viene en **simulacro** por default: la primera corrida nada más dice
+qué haría. Apagando el simulacro, crea la base, el bucket y el Worker, aplica el
+esquema, publica, le pone sus secretos, comprueba que responda, **le manda por
+correo sus ligas y la clave de su panel**, y deja el archivo del cliente en
+`clientes/` para que de ahí en adelante se publique junto con los demás.
+
+La clave del panel y la firma de sesiones de cada empresa se generan en su alta,
+se guardan solo en su Worker y se le mandan por correo: no quedan en el
+repositorio ni en la bitácora. La llave de Resend sí es la misma para todos —es
+de roster101— y se refresca en cada publicación.
+
+El de Taller 101 es el `wrangler.toml` de la raíz, que además es el que se usa
+para trabajar en local.
 
 ## Cambios a la base de datos
 
@@ -92,11 +105,9 @@ encontró lo de las casillas, que a simple vista parecía un problema de diseño
    secreto `CLAVE_ADMIN`, se dispara el workflow a mano y se actualiza `llaves.env`.
    Aprovechar para poner una larga.
 5. Prueba con un trabajador de verdad antes de repartir la liga.
-6. **Administrador de clientes.** Un panel de roster101 —arriba de los portales
-   de cada empresa— para dar de alta una empresa, mandarle a su correo su
-   usuario y un formulario donde llene sus datos (razón social, CSF, domicilio,
-   aviso de privacidad, remitente de correos). Falta decidir lo de fondo: si
-   cada cliente sigue teniendo su propio Worker y su propia base —lo de hoy, más
-   aislado, pero hay que provisionar— o si todos comparten uno con el id de la
-   empresa en cada renglón. Esa decisión cambia el esquema completo, así que va
-   antes que el código.
+6. **El formulario de datos del cliente.** Hoy el correo de alta le pide a la
+   empresa que responda con su razón social, su CSF, su domicilio y su aviso de
+   privacidad. Falta la pantalla donde los suba ella misma y que eso actualice
+   su configuración sin pasar por GitHub.
+7. **Panel de roster101.** Dar de alta desde una pantalla en vez de disparar el
+   flujo de Actions, y ver ahí todas las empresas, su uso y su estado.
