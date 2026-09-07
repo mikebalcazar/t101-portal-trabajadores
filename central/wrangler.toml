@@ -15,7 +15,7 @@ binding = "ASSETS"
 [[d1_databases]]
 binding = "DB"
 database_name = "roster101-central"
-database_id = "PENDIENTE-CREAR-LA-BASE"
+database_id = "abbf7f28-90a5-4ebf-a334-827acd7fc44b"
 
 [[r2_buckets]]
 binding = "DOCS"
