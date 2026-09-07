@@ -4,15 +4,18 @@
 // los datos con los que se arma su aviso de privacidad y salen sus correos, y
 // los papeles que respaldan que la empresa es quien dice ser.
 
+// `captura` dice cómo se toma: 'tarjeta' recorta al tamaño de una credencial,
+// 'hoja' escanea el papel y lo guarda en PDF. El logotipo no se escanea: ese se
+// sube como archivo, tal como lo tengan.
 export const DOCS_EMPRESA = [
-  { tipo: 'csf', nombre: 'Constancia de Situación Fiscal', pista: 'La del SAT, con menos de tres meses', obligatorio: true },
-  { tipo: 'identificacion', nombre: 'Identificación del representante', pista: 'INE o pasaporte de quien firma por la empresa', obligatorio: true },
-  { tipo: 'domicilio', nombre: 'Comprobante de domicilio', pista: 'Luz, agua o predial del domicilio fiscal', obligatorio: true },
-  { tipo: 'acta', nombre: 'Acta constitutiva', pista: 'Solo si es persona moral', obligatorio: false },
-  { tipo: 'poder', nombre: 'Poder del representante', pista: 'Si quien firma no es el dueño', obligatorio: false },
-  { tipo: 'aviso', nombre: 'Su aviso de privacidad', pista: 'Si ya tienen uno propio. Si no, se usa el de roster101 con sus datos', obligatorio: false },
+  { tipo: 'csf', nombre: 'Constancia de Situación Fiscal', pista: 'La del SAT, con menos de tres meses', obligatorio: true, captura: 'hoja' },
+  { tipo: 'identificacion', nombre: 'Identificación del representante', pista: 'INE o pasaporte de quien firma por la empresa', obligatorio: true, captura: 'tarjeta' },
+  { tipo: 'domicilio', nombre: 'Comprobante de domicilio', pista: 'Luz, agua o predial del domicilio fiscal', obligatorio: true, captura: 'hoja' },
+  { tipo: 'acta', nombre: 'Acta constitutiva', pista: 'Solo si es persona moral', obligatorio: false, captura: 'hoja' },
+  { tipo: 'poder', nombre: 'Poder del representante', pista: 'Si quien firma no es el dueño', obligatorio: false, captura: 'hoja' },
+  { tipo: 'aviso', nombre: 'Su aviso de privacidad', pista: 'Si ya tienen uno propio. Si no, se usa el de roster101 con sus datos', obligatorio: false, captura: 'hoja' },
   { tipo: 'logo', nombre: 'Su logotipo', pista: 'Para que el portal de sus trabajadores salga con su marca', obligatorio: false },
-  { tipo: 'otro', nombre: 'Otro documento', pista: 'Lo que quieran agregar', obligatorio: false, multiple: true },
+  { tipo: 'otro', nombre: 'Otro documento', pista: 'Lo que quieran agregar', obligatorio: false, multiple: true, captura: 'hoja' },
 ];
 
 export const DOCS_OBLIGATORIOS = DOCS_EMPRESA.filter((d) => d.obligatorio).map((d) => d.tipo);

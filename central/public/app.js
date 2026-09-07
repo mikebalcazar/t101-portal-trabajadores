@@ -203,8 +203,23 @@ function pintarDocumentos() {
     const acciones = fila.querySelector('.acciones');
     const camara = document.createElement('button');
     camara.className = 'btn primario chico';
-    camara.textContent = listo && !def.multiple ? '📷 Cambiar' : '📷 Tomar';
-    camara.onclick = () => pedirArchivo(def, true);
+    const esTarjeta = def.captura === 'tarjeta';
+    camara.textContent = def.captura
+      ? (esTarjeta ? (listo && !def.multiple ? '📷 Cambiar' : '📷 Tomar') : '📄 Escanear')
+      : '📷 Tomar';
+    camara.onclick = async () => {
+      if (!def.captura) { pedirArchivo(def, true); return; }
+      let etiqueta = '';
+      if (def.tipo === 'otro') etiqueta = prompt('¿Qué documento es?') || 'Otro documento';
+      const archivo = await Escaner.capturar({
+        tipo: esTarjeta ? 'tarjeta' : 'hoja',
+        titulo: def.nombre,
+        nombre: def.tipo,
+        pista: esTarjeta ? 'Encuadra la identificación dentro del marco'
+                         : 'Pon el documento sobre una mesa y encuádralo',
+      });
+      if (archivo) await subir(def.tipo, archivo, etiqueta);
+    };
     const archivo = document.createElement('button');
     archivo.className = 'btn suave chico';
     archivo.textContent = '📁';

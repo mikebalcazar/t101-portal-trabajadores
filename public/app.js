@@ -7,16 +7,19 @@ const $$ = (s) => Array.from(document.querySelectorAll(s));
 const CAMPOS = ['nombre','apellido_paterno','apellido_materno','celular','puesto','nss','curp','rfc',
   'banco','clabe','beneficiario','emerg_nombre','emerg_parentesco','emerg_telefono','emerg_email'];
 
+// `captura` dice cómo se toma cada uno: 'tarjeta' recorta al tamaño exacto de
+// una credencial y guarda la imagen; 'hoja' escanea el papel —lo endereza, le
+// quita la sombra— y lo guarda en PDF.
 const DOCS = [
-  { tipo:'ine',         nombre:'Identificación — FRENTE',  pista:'El lado de tu foto. Sin reflejos y que se lean las letras.', obligatorio:true },
-  { tipo:'ine_reverso', nombre:'Identificación — REVERSO', pista:'El lado del código de barras. Si usas pasaporte, sube otra vez la hoja de datos.', obligatorio:true },
-  { tipo:'acta',     nombre:'Acta de nacimiento',           pista:'La copia certificada o la impresión del formato oficial en línea', obligatorio:true },
-  { tipo:'nss',      nombre:'Constancia de NSS',            pista:'La que descargas del IMSS',          obligatorio:true },
-  { tipo:'csf',      nombre:'Cédula de Situación Fiscal',   pista:'La constancia del SAT, actualizada', obligatorio:true },
-  { tipo:'curp',     nombre:'CURP impresa',                 pista:'La versión con código QR',           obligatorio:true },
-  { tipo:'caratula', nombre:'Carátula de cuenta bancaria',  pista:'Donde se vea tu nombre y la CLABE',  obligatorio:true },
-  { tipo:'dc3',      nombre:'Certificación DC-3',           pista:'Si tienes más de una, súbelas todas', obligatorio:false, multiple:true },
-  { tipo:'otro',     nombre:'Otro documento',               pista:'Contrato, certificado, lo que te pidan', obligatorio:false, multiple:true },
+  { tipo:'ine',         nombre:'Identificación — FRENTE',  pista:'El lado de tu foto. Sin reflejos y que se lean las letras.', obligatorio:true, captura:'tarjeta' },
+  { tipo:'ine_reverso', nombre:'Identificación — REVERSO', pista:'El lado del código de barras. Si usas pasaporte, sube otra vez la hoja de datos.', obligatorio:true, captura:'tarjeta' },
+  { tipo:'acta',     nombre:'Acta de nacimiento',           pista:'La copia certificada o la impresión del formato oficial en línea', obligatorio:true, captura:'hoja' },
+  { tipo:'nss',      nombre:'Constancia de NSS',            pista:'La que descargas del IMSS',          obligatorio:true, captura:'hoja' },
+  { tipo:'csf',      nombre:'Cédula de Situación Fiscal',   pista:'La constancia del SAT, actualizada', obligatorio:true, captura:'hoja' },
+  { tipo:'curp',     nombre:'CURP impresa',                 pista:'La versión con código QR',           obligatorio:true, captura:'hoja' },
+  { tipo:'caratula', nombre:'Carátula de cuenta bancaria',  pista:'Donde se vea tu nombre y la CLABE',  obligatorio:true, captura:'hoja' },
+  { tipo:'dc3',      nombre:'Certificación DC-3',           pista:'Si tienes más de una, súbelas todas', obligatorio:false, multiple:true, captura:'hoja' },
+  { tipo:'otro',     nombre:'Otro documento',               pista:'Contrato, certificado, lo que te pidan', obligatorio:false, multiple:true, captura:'hoja' },
 ];
 
 let estado = { trabajador:null, documentos:[], faltantes:[] };
@@ -435,15 +438,25 @@ function pintarDocumentos() {
     if (!listo || def.multiple) {
       const foto = document.createElement('button');
       foto.className = 'btn ' + (listo ? 'suave' : 'primario') + ' chico';
-      foto.textContent = '📷 Tomar';
-      foto.title = 'Tomar foto del documento con la cámara';
+      const esTarjeta = def.captura === 'tarjeta';
+      foto.textContent = esTarjeta ? '📷 Tomar' : '📄 Escanear';
+      foto.title = esTarjeta
+        ? 'Encuadrar la credencial y recortarla al marco'
+        : 'Escanear el documento: se endereza, se limpia y se guarda en PDF';
       foto.onclick = async () => {
         let etiqueta = '';
         if (def.tipo === 'otro') etiqueta = prompt('¿Qué documento es?') || 'Otro documento';
-        abrirCamara({
-          tipo: def.tipo, etiqueta, titulo: def.nombre, forma: 'documento', lado: 'environment',
-          pista: 'Que quepa completo y se lean las letras',
+        const archivo = await Escaner.capturar({
+          tipo: esTarjeta ? 'tarjeta' : 'hoja',
+          titulo: def.nombre,
+          nombre: def.tipo,
+          pista: esTarjeta
+            ? 'Encuadra la credencial dentro del marco'
+            : 'Pon el documento sobre una mesa y encuádralo',
         });
+        if (!archivo) return;
+        // Ya viene recortado y del tamaño justo: subirlo tal cual.
+        await subir(def.tipo, archivo, etiqueta);
       };
       acc.appendChild(foto);
 
