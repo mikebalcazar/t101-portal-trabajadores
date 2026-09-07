@@ -14,7 +14,7 @@ const elegidos = new Set();
 async function api(ruta, op = {}) {
   const r = await fetch(ruta, { credentials:'same-origin', ...op });
   let d = {}; try { d = await r.json(); } catch {}
-  if (!r.ok) throw Object.assign(new Error(d.error || 'Error'), { estado:r.status });
+  if (!r.ok) throw Object.assign(new Error(d.error || 'Error'), { estado:r.status, datos:d });
   return d;
 }
 
@@ -91,21 +91,38 @@ function pintar() {
     const chips = ORDEN.filter((k) => hay[k]).map((k) =>
       hay[k].map((d) => `<a class="btn suave chico" style="margin:2px 2px 0 0" target="_blank" rel="noopener" href="/api/docs/${d.id}/archivo">${esc(NOMBRES[k])}</a>`).join('')
     ).join('');
-    const falta = (t.faltantes || []).length;
+    const faltanDocs = t.faltantes || [];
+    const faltanCampos = (t.faltan_campos || []).map((f) => f.nombre);
+    const falta = faltanDocs.length + faltanCampos.length;
+    const detalleFalta = [
+      faltanCampos.length ? `<b>Por escribir:</b> ${esc(faltanCampos.join(', '))}` : '',
+      faltanDocs.length ? `<b>Por entregar:</b> ${esc(faltanDocs.join(', '))}` : '',
+    ].filter(Boolean).join('<br>');
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><input type="checkbox" class="palomita" data-id="${t.id}"${elegidos.has(t.id) ? ' checked' : ''}></td>
       <td class="mono">${t.folio ?? ''}</td>
-      <td><b>${esc(t.apellido_paterno)} ${esc(t.apellido_materno)}</b><br><span style="color:var(--tenue)">${esc(t.nombre)}${t.puesto ? ' · ' + esc(t.puesto) : ''}</span></td>
+      <td><button class="abre-exp" data-abrir="${t.id}" title="Abrir su expediente"><b>${esc(t.apellido_paterno)} ${esc(t.apellido_materno)}</b><br><span style="color:var(--tenue)">${esc(t.nombre)}${t.puesto ? ' · ' + esc(t.puesto) : ''}</span></button></td>
       <td><span class="mono">${esc(t.celular)}</span><br><span style="color:var(--tenue);font-size:12px">${esc(t.email)}</span></td>
       <td class="mono">${esc(t.nss)}<br>${esc(t.curp)}</td>
       <td>${esc(t.banco)}<br><span class="mono" style="font-size:12px">${esc(t.clabe)}</span></td>
       <td>${esc(t.emerg_nombre)}${t.emerg_parentesco ? ` <span style="color:var(--tenue)">(${esc(t.emerg_parentesco)})</span>` : ''}<br><span class="mono" style="font-size:12px">${esc(t.emerg_telefono)}</span></td>
-      <td class="celda-docs">${chips || '<span style="color:var(--tenue)">—</span>'}${falta ? `<details class="faltan"><summary>Faltan ${falta}</summary>${esc((t.faltantes||[]).join(', '))}</details>` : ''}</td>
+      <td class="celda-docs">${chips || '<span style="color:var(--tenue)">—</span>'}${falta ? `<details class="faltan"><summary>Faltan ${falta}</summary>${detalleFalta}</details>` : ''}</td>
       <td><span class="etiqueta ${t.estado === 'completo' ? 'completo' : 'borrador'}">${t.estado === 'completo' ? 'Completo' : 'Pendiente'}</span></td>
       <td><button class="btn peligro chico" data-baja="${t.id}">Baja</button></td>`;
+    // Doble clic en el renglón abre su expediente tal como lo ve la persona. Se
+    // deja fuera la primera y la última celda: ahí viven la palomita y el botón
+    // de baja, y abrir una ventana encima de un clic a esos dos estorba.
+    tr.addEventListener('dblclick', (e) => {
+      if (e.target.closest('input, button, a, details')) return;  // el nombre ya abre con un clic
+      abrirExpediente(t.id);
+    });
+    tr.title = 'Doble clic para abrir su expediente';
     cuerpo.appendChild(tr);
   }
+  cuerpo.querySelectorAll('[data-abrir]').forEach((b) =>
+    b.addEventListener('click', () => abrirExpediente(b.dataset.abrir)));
+
   cuerpo.querySelectorAll('.palomita').forEach((p) => p.addEventListener('change', () => {
     if (p.checked) elegidos.add(p.dataset.id); else elegidos.delete(p.dataset.id);
     contarElegidos();
@@ -301,6 +318,159 @@ async function pintarMarca() {
 }
 
 (async () => { pintarMarca(); try { await abrir(); } catch {} })();
+
+/* ─────────── el expediente de una persona, como ella lo ve ─────────── */
+// Abrirlo desde el panel evita el ida y vuelta de "¿qué te falta?" por teléfono:
+// se ve el formato completo, con lo que escribió y lo que no, y se puede capturar
+// por ella lo que haga falta. Los documentos se ven pero no se tocan: subirlos y
+// borrarlos sigue siendo cosa suya, y el servidor no tiene ninguna ruta que
+// permita otra cosa.
+
+let expAbierto = null;   // el trabajador que está en pantalla
+let expCampos = [];      // el catálogo de campos, como lo manda el servidor
+
+const vent = () => $('#ventana-exp');
+
+async function abrirExpediente(id) {
+  vent().classList.remove('oculto');
+  document.body.style.overflow = 'hidden';
+  $('#exp-cuerpo').innerHTML = '<p class="ayuda">Cargando…</p>';
+  $('#exp-titulo').textContent = 'Expediente';
+  $('#exp-sub').textContent = '';
+  try {
+    const d = await api('/api/admin/trabajadores/' + id);
+    expAbierto = d;
+    expCampos = d.campos || [];
+    pintarExpediente(d);
+  } catch (e) {
+    $('#exp-cuerpo').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
+  }
+}
+
+function cerrarExpediente() {
+  vent().classList.add('oculto');
+  document.body.style.overflow = '';
+  expAbierto = null;
+}
+
+function pintarExpediente(d) {
+  const t = d.trabajador;
+  const nom = [t.apellido_paterno, t.apellido_materno, t.nombre].filter(Boolean).join(' ').trim() || '(sin nombre)';
+  $('#exp-titulo').textContent = nom;
+  $('#exp-sub').innerHTML = `${esc(t.email)}${t.folio ? ' · folio ' + esc(t.folio) : ''} · ` +
+    `<span class="etiqueta ${t.estado === 'completo' ? 'completo' : 'borrador'}">${t.estado === 'completo' ? 'Completo' : 'Pendiente'}</span>`;
+
+  const faltanCampos = d.faltan_campos || [];
+  const faltanDocs = d.faltantes || [];
+  const porCampo = Object.fromEntries(faltanCampos.map((f) => [f.campo, f.porque]));
+
+  // Lo que falta, hasta arriba: es la razón por la que se abre esta ventana.
+  const resumen = (faltanCampos.length || faltanDocs.length)
+    ? `<div class="aviso mal">
+         <b>Le falta:</b>
+         ${faltanCampos.length ? `<div style="margin-top:6px"><b>Por escribir</b> — ${esc(faltanCampos.map((f) => f.nombre).join(', '))}</div>` : ''}
+         ${faltanDocs.length ? `<div style="margin-top:6px"><b>Por entregar</b> — ${esc(faltanDocs.join(', '))}</div>` : ''}
+       </div>`
+    : '<div class="aviso bien"><b>No le falta nada.</b> Tiene sus datos completos y entregó todos sus documentos.</div>';
+
+  const aviso = d.aviso
+    ? `<p class="ayuda">Aceptó el aviso de privacidad (versión ${esc(d.aviso.version)}).</p>`
+    : '<div class="aviso mal">Todavía <b>no acepta el aviso de privacidad</b>. Eso solo lo puede hacer él desde su portal, y hasta entonces su expediente no puede darse por completo.</div>';
+
+  // Los campos, en el mismo orden y con el mismo nombre que en su formato.
+  const secciones = [];
+  for (const c of expCampos) {
+    let sec = secciones.find((x) => x.nombre === c.seccion);
+    if (!sec) { sec = { nombre: c.seccion, campos: [] }; secciones.push(sec); }
+    sec.campos.push(c);
+  }
+
+  const formulario = secciones.map((sec) => `
+    <section class="exp-seccion">
+      <h3>${esc(sec.nombre)}</h3>
+      <div class="rejilla">
+        ${sec.campos.map((c) => {
+          const valor = t[c.campo] == null ? '' : String(t[c.campo]);
+          const mal = porCampo[c.campo];
+          const control = c.opciones
+            ? `<select data-c="${esc(c.campo)}">
+                 <option value="">¿Quién es de él?</option>
+                 ${c.opciones.map((o) => `<option${o === valor ? ' selected' : ''}>${esc(o)}</option>`).join('')}
+               </select>`
+            : `<input data-c="${esc(c.campo)}" value="${esc(valor)}"${c.mayusculas ? ' style="text-transform:uppercase"' : ''}>`;
+          return `<div class="campo${mal ? ' falta' : ''}">
+            <label>${esc(c.nombre)}${c.opcional ? ' <span class="opc">(opcional)</span>' : ''}${c.pista ? ` <span class="opc">(${esc(c.pista)})</span>` : ''}</label>
+            ${control}
+            <div class="error" data-e="${esc(c.campo)}">${mal ? esc(mal) : ''}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </section>`).join('');
+
+  // Los documentos: se ven, no se tocan.
+  const hay = {};
+  for (const doc of d.documentos || []) (hay[doc.tipo] ||= []).push(doc);
+  const nombres = d.nombres_doc || {};
+  const tipos = [...new Set([...(d.obligatorios || []), ...Object.keys(hay)])];
+  const documentos = tipos.map((tipo) => {
+    const entregados = hay[tipo] || [];
+    const obligatorio = (d.obligatorios || []).includes(tipo);
+    return `<div class="exp-doc${entregados.length ? '' : ' falta'}">
+      <span class="exp-doc-nombre">${esc(nombres[tipo] || tipo)}${obligatorio ? '' : ' <span class="opc">(opcional)</span>'}</span>
+      ${entregados.length
+        ? entregados.map((doc) => `<a class="btn suave chico" target="_blank" rel="noopener" href="/api/docs/${esc(doc.id)}/archivo">Ver${doc.etiqueta ? ' · ' + esc(doc.etiqueta) : ''}</a>`).join(' ')
+        : '<span class="exp-doc-falta">No lo ha subido</span>'}
+    </div>`;
+  }).join('');
+
+  $('#exp-cuerpo').innerHTML = `
+    ${resumen}
+    ${aviso}
+    <div id="exp-error"></div>
+    ${formulario}
+    <section class="exp-seccion">
+      <h3>Documentos</h3>
+      <p class="ayuda">Solo para verlos. Subir y borrar documentos lo hace él desde su portal: así el expediente sigue siendo suyo y queda claro quién entregó qué.</p>
+      <div class="exp-docs">${documentos}</div>
+    </section>`;
+}
+
+async function guardarExpediente() {
+  if (!expAbierto) return;
+  const b = $('#exp-guardar');
+  const datos = { __parcial: true };
+  for (const el of $('#exp-cuerpo').querySelectorAll('[data-c]')) datos[el.dataset.c] = el.value;
+
+  b.disabled = true; b.textContent = 'Guardando…';
+  $('#exp-aviso-guardado').textContent = '';
+  try {
+    const r = await api('/api/admin/trabajadores/' + expAbierto.trabajador.id, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos),
+    });
+    // Se vuelve a pintar con lo que contestó el servidor: así lo que se ve es lo
+    // que de verdad quedó guardado, y lo que sigue faltando se actualiza solo.
+    expAbierto = { ...expAbierto, trabajador: r.trabajador, faltan_campos: r.faltan_campos, faltantes: r.faltantes };
+    pintarExpediente(expAbierto);
+    const quedan = (r.faltan_campos || []).length;
+    $('#exp-aviso-guardado').textContent = quedan
+      ? `Guardado. Todavía le faltan ${quedan} dato${quedan === 1 ? '' : 's'}.`
+      : 'Guardado. Ya no le falta ningún dato.';
+    await cargar();
+  } catch (e) {
+    $('#exp-error').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
+    if (e.datos && e.datos.errores) {
+      for (const [campo, texto] of Object.entries(e.datos.errores)) {
+        const caja = $('#exp-cuerpo').querySelector(`[data-e="${campo}"]`);
+        if (caja) { caja.textContent = texto; caja.closest('.campo')?.classList.add('falta'); }
+      }
+    }
+  } finally { b.disabled = false; b.textContent = 'Guardar lo que capturé'; }
+}
+
+$('#exp-cerrar').addEventListener('click', cerrarExpediente);
+$('#exp-guardar').addEventListener('click', guardarExpediente);
+vent().querySelector('.ventana-fondo').addEventListener('click', cerrarExpediente);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !vent().classList.contains('oculto')) cerrarExpediente(); });
 
 /* ─────────── bitácora: todo lo que pasa, y qué se ve ─────────── */
 // Se carga solo cuando se abre la tarjeta: es la única parte del panel que puede

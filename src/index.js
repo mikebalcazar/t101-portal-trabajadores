@@ -9,6 +9,7 @@ import {
 import {
   revisaExpediente, emailValido,
   DOCS_OBLIGATORIOS, DOCS_OPCIONALES, NOMBRES_DOC,
+  CAMPOS_EXPEDIENTE, faltantesCampos,
 } from './validar.js';
 import { enviarCorreo, correoCodigo, correoConfirmacion, correoAvisoAdmin } from './correo.js';
 import { armaZip, exportarCsv, armaZipFichas } from './exportar.js';
@@ -668,9 +669,89 @@ app.get('/api/admin/trabajadores', exigeAdmin, async (c) => {
   for (const d of docs.results || []) (porTrab[d.trabajador_id] ||= []).push(d);
   const lista = (results || []).map((t) => {
     const ds = porTrab[t.id] || [];
-    return { ...t, documentos: ds, faltantes: faltantesDe(ds) };
+    return { ...t, documentos: ds, faltantes: faltantesDe(ds), faltan_campos: faltantesCampos(t) };
   });
   return c.json({ trabajadores: lista, nombres_doc: NOMBRES_DOC });
+});
+
+// El expediente de una persona, como ella lo ve. Sirve para abrirlo desde el
+// panel y saber exactamente en qué va: qué escribió, qué le falta de escribir y
+// qué papeles entregó. Los documentos vienen para verse, no para tocarse: no hay
+// ruta de administración que suba ni borre un documento ajeno, y no la va a
+// haber. Eso lo hace la persona desde su portal, y así el expediente sigue
+// siendo suyo.
+app.get('/api/admin/trabajadores/:id', exigeAdmin, async (c) => {
+  const t = await c.env.DB.prepare('SELECT * FROM trabajadores WHERE id = ?').bind(c.req.param('id')).first();
+  if (!t) return err(c, 'Ese trabajador ya no está.', 404);
+  const docs = await documentosDe(c.env, t.id);
+  return c.json({
+    trabajador: t,
+    documentos: docs,
+    faltantes: faltantesDe(docs),
+    faltan_campos: faltantesCampos(t),
+    aviso: await consentimientoDe(c.env, t.id),
+    campos: CAMPOS_EXPEDIENTE,
+    nombres_doc: NOMBRES_DOC,
+    obligatorios: DOCS_OBLIGATORIOS,
+  });
+});
+
+// Capturar por alguien. Pasa por la misma revisión que si lo escribiera él, con
+// los mismos frenos de datos repetidos, y queda apuntado en la bitácora con el
+// nombre de a quién se le tocó el expediente: si administración escribe algo, se
+// tiene que poder ver quién lo escribió.
+//
+// Lo que NO hace: dar por aceptado el aviso de privacidad. Ese consentimiento es
+// de la persona y nadie lo puede dar por ella, así que si no lo ha aceptado, su
+// expediente se queda en borrador aunque esté todo lleno.
+app.put('/api/admin/trabajadores/:id', exigeAdmin, async (c) => {
+  const id = c.req.param('id');
+  const t = await c.env.DB.prepare('SELECT * FROM trabajadores WHERE id = ?').bind(id).first();
+  if (!t) return err(c, 'Ese trabajador ya no está.', 404);
+
+  const cuerpo = await c.req.json().catch(() => ({}));
+  const parcial = cuerpo.__parcial === true;
+  const { errores, limpio, ok } = revisaExpediente(cuerpo);
+  if (!ok && !parcial) return err(c, 'Revisa los datos marcados.', 422, { errores });
+
+  // Un dato repetido frena aunque se esté capturando a medias. Cuando alguien
+  // escribe por otra persona, una CURP que ya existe casi siempre quiere decir
+  // que se abrió el expediente equivocado: mejor detenerse que encimar dos.
+  const choques = await choquesDe(c.env, id, limpio);
+  if (choques.length) {
+    const erroresChoque = {};
+    for (const ch of choques) erroresChoque[ch.campo] = ch.mensaje;
+    return err(c, 'Esos datos ya están en otro expediente.', 409, { errores: erroresChoque });
+  }
+
+  const docs = await documentosDe(c.env, id);
+  const faltantes = faltantesDe(docs);
+  const consent = await consentimientoDe(c.env, id);
+  const estado = ok && !choques.length && !faltantes.length && consent ? 'completo' : 'borrador';
+
+  await c.env.DB.prepare(
+    `UPDATE trabajadores SET nombre=?, apellido_paterno=?, apellido_materno=?, celular=?, nss=?, curp=?, rfc=?,
+     banco=?, clabe=?, beneficiario=?, emerg_nombre=?, emerg_parentesco=?, emerg_telefono=?, emerg_email=?, puesto=?,
+     estado=?, actualizado_en=? WHERE id=?`
+  ).bind(
+    limpio.nombre, limpio.apellido_paterno, limpio.apellido_materno, limpio.celular, limpio.nss,
+    limpio.curp, limpio.rfc, limpio.banco, limpio.clabe, limpio.beneficiario,
+    limpio.emerg_nombre, limpio.emerg_parentesco, limpio.emerg_telefono, limpio.emerg_email, limpio.puesto,
+    estado, ahora(), id
+  ).run();
+
+  await registra(c.env, 'admin', 'expediente_capturado', `${t.email}${parcial ? ' (a medias)' : ''}`);
+
+  const nuevo = await c.env.DB.prepare('SELECT * FROM trabajadores WHERE id = ?').bind(id).first();
+  return c.json({
+    ok: true,
+    trabajador: nuevo,
+    estado,
+    faltantes,
+    faltan_campos: faltantesCampos(nuevo),
+    errores: parcial ? errores : {},
+    sin_aviso: !consent,
+  });
 });
 
 // Dar de baja: se manda a la papelera, no se borra.
@@ -779,6 +860,7 @@ const ACCIONES_BITACORA = [
   { accion: 'fichas_pdf', grupo: 'Administración', corto: 'Descargó fichas', dice: 'Descargó fichas en PDF', tono: '' },
   { accion: 'fichas_zip', grupo: 'Administración', corto: 'Descargó fichas y documentos', dice: 'Descargó fichas con documentos', tono: '' },
   { accion: 'exportacion', grupo: 'Administración', corto: 'Exportó todo', dice: 'Exportó todos los expedientes', tono: '' },
+  { accion: 'expediente_capturado', grupo: 'Administración', corto: 'Capturó por alguien', dice: 'Capturó datos en el expediente de alguien más', tono: '' },
   { accion: 'baja_trabajador', grupo: 'Administración', corto: 'Dio de baja', dice: 'Dio de baja a un trabajador', tono: 'mal' },
   { accion: 'restaurar_trabajador', grupo: 'Administración', corto: 'Restauró de la papelera', dice: 'Restauró a un trabajador de la papelera', tono: '' },
   { accion: 'borrado_definitivo', grupo: 'Administración', corto: 'Borró para siempre', dice: 'Borró un expediente para siempre', tono: 'mal' },

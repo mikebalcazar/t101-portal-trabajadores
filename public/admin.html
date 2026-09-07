@@ -133,8 +133,29 @@
     <div id="pap-lista" style="margin-top:10px"></div>
   </div>
 
+  <div class="ayuda" style="margin:-6px 0 18px">💡 Toca el nombre de un trabajador —o doble clic en su renglón— para abrir su expediente, tal como él lo ve.</div>
+
   <p class="pie">roster101 · Portal de Trabajadores de <span class="eco-empresa">la empresa</span></p>
 </main>
+
+<!-- ═══════════ EXPEDIENTE DE UNA PERSONA ═══════════ -->
+<div id="ventana-exp" class="ventana oculto" role="dialog" aria-modal="true" aria-labelledby="exp-titulo">
+  <div class="ventana-fondo"></div>
+  <div class="ventana-caja">
+    <header class="ventana-barra">
+      <div>
+        <h2 id="exp-titulo">Expediente</h2>
+        <p class="ayuda" id="exp-sub"></p>
+      </div>
+      <button id="exp-cerrar" class="btn suave" aria-label="Cerrar">✕</button>
+    </header>
+    <div class="ventana-cuerpo" id="exp-cuerpo"></div>
+    <footer class="ventana-pie">
+      <span id="exp-aviso-guardado" class="ayuda"></span>
+      <button id="exp-guardar" class="btn primario">Guardar lo que capturé</button>
+    </footer>
+  </div>
+</div>
 
 <script src="/admin.js"></script>
 </body>

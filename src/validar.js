@@ -31,6 +31,10 @@ export function curpValida(curp) {
 
 export const soloDigitos = (v) => String(v || '').replace(/\D/g, '');
 
+// Los mismos que ve el trabajador en su lista.
+export const PARENTESCOS = ['Madre', 'Padre', 'Esposa', 'Esposo', 'Pareja', 'Hija', 'Hijo',
+  'Hermana', 'Hermano', 'Abuela', 'Abuelo', 'Tía', 'Tío', 'Prima', 'Primo', 'Amiga', 'Amigo', 'Otro'];
+
 export function revisaExpediente(d) {
   const errores = {};
   const t = (v) => String(v || '').trim();
@@ -106,3 +110,39 @@ export const NOMBRES_DOC = {
   dc3: 'Certificación DC-3',
   otro: 'Otro documento',
 };
+
+// Los campos que se escriben, en el mismo orden y con el mismo nombre que ve el
+// trabajador en su formato. De aquí salen las dos cosas que hacían falta: decirle
+// a administración qué le falta de escribir a cada quien, y poder abrir ese mismo
+// formato desde el panel sin volver a teclear las etiquetas.
+export const CAMPOS_EXPEDIENTE = [
+  { campo: 'nombre', nombre: 'Nombre completo', seccion: 'Datos personales' },
+  { campo: 'apellido_paterno', nombre: 'Apellido paterno', seccion: 'Datos personales' },
+  { campo: 'apellido_materno', nombre: 'Apellido materno', seccion: 'Datos personales' },
+  { campo: 'celular', nombre: 'Celular', seccion: 'Datos personales', pista: '10 dígitos' },
+  { campo: 'puesto', nombre: 'Puesto', seccion: 'Datos personales', opcional: true },
+  { campo: 'nss', nombre: 'NSS', seccion: 'Datos personales', pista: '11 dígitos' },
+  { campo: 'curp', nombre: 'CURP', seccion: 'Datos personales', pista: '18 caracteres', mayusculas: true },
+  { campo: 'rfc', nombre: 'RFC', seccion: 'Datos personales', opcional: true, mayusculas: true },
+
+  { campo: 'banco', nombre: 'Banco', seccion: 'Datos bancarios' },
+  { campo: 'clabe', nombre: 'CLABE interbancaria', seccion: 'Datos bancarios', pista: '18 dígitos' },
+  { campo: 'beneficiario', nombre: 'Beneficiario de la cuenta', seccion: 'Datos bancarios' },
+
+  { campo: 'emerg_nombre', nombre: 'Nombre del contacto', seccion: 'Contacto de emergencia' },
+  { campo: 'emerg_parentesco', nombre: 'Parentesco', seccion: 'Contacto de emergencia', opciones: PARENTESCOS },
+  { campo: 'emerg_telefono', nombre: 'Teléfono del contacto', seccion: 'Contacto de emergencia', pista: '10 dígitos, distinto al suyo' },
+  { campo: 'emerg_email', nombre: 'Correo del contacto', seccion: 'Contacto de emergencia', opcional: true },
+];
+
+export const NOMBRE_CAMPO = Object.fromEntries(CAMPOS_EXPEDIENTE.map((c) => [c.campo, c.nombre]));
+
+// Qué le falta de escribir, en el orden del formato y con el nombre del campo.
+// Un campo mal escrito cuenta igual que uno vacío: de las dos formas hay que
+// volver con la persona.
+export function faltantesCampos(t) {
+  const { errores } = revisaExpediente(t || {});
+  return CAMPOS_EXPEDIENTE.filter((c) => errores[c.campo]).map((c) => ({
+    campo: c.campo, nombre: c.nombre, porque: errores[c.campo],
+  }));
+}

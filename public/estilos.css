@@ -469,6 +469,60 @@ td .btn.chico{padding:5px 9px;font-size:12.5px}
 }
 
 
+
+/* ══════════ el expediente de una persona, desde el panel ══════════ */
+
+.ventana{position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center; padding:20px}
+.ventana.oculto{display:none}
+.ventana-fondo{position:absolute; inset:0; background:rgba(18,39,51,.55)}
+.ventana-caja{
+  position:relative; z-index:1; background:#fff; border-radius:var(--radio);
+  box-shadow:0 20px 60px rgba(18,39,51,.3); width:min(820px, 100%);
+  max-height:100%; display:flex; flex-direction:column; overflow:hidden;
+}
+.ventana-barra{
+  display:flex; align-items:flex-start; justify-content:space-between; gap:14px;
+  padding:18px 22px; border-bottom:1px solid var(--linea);
+}
+.ventana-barra h2{margin:0; font-size:20px}
+.ventana-barra .ayuda{margin:4px 0 0}
+.ventana-cuerpo{padding:18px 22px; overflow-y:auto; flex:1}
+.ventana-pie{
+  display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  padding:14px 22px; border-top:1px solid var(--linea); background:var(--papel);
+}
+.ventana-pie .ayuda{margin:0}
+
+/* El nombre es el botón que abre el expediente, pero se sigue leyendo como
+   nombre: nada de que parezca botón hasta que se le acerca el cursor. */
+.abre-exp{
+  border:0; background:none; padding:2px 4px; margin:-2px -4px; cursor:pointer;
+  font:inherit; color:inherit; text-align:left; width:100%; border-radius:8px;
+}
+.abre-exp:hover{background:#eef6fb}
+.abre-exp:focus-visible{outline:2px solid var(--marca); outline-offset:1px}
+
+.exp-seccion{margin-top:20px}
+.exp-seccion:first-of-type{margin-top:10px}
+.exp-seccion h3{
+  margin:0 0 10px; font-size:13px; font-weight:700; letter-spacing:.04em;
+  text-transform:uppercase; color:var(--tenue);
+  border-bottom:1px solid var(--linea); padding-bottom:6px;
+}
+/* Un campo que le falta se ve de lejos: es a lo que se viene a esta ventana. */
+.campo.falta label{color:var(--alerta)}
+.campo.falta input,.campo.falta select{border-color:var(--alerta); background:#fdf6f4}
+
+.exp-docs{display:flex; flex-direction:column; gap:2px}
+.exp-doc{
+  display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  padding:8px 10px; border-radius:8px; font-size:14px; border-bottom:1px solid var(--linea);
+}
+.exp-doc:last-child{border-bottom:0}
+.exp-doc-nombre{font-weight:600}
+.exp-doc.falta .exp-doc-nombre{color:var(--alerta)}
+.exp-doc-falta{color:var(--alerta); font-size:13px}
+
 /* ══════════ bitácora: quién pidió entrar y cuándo ══════════ */
 
 /* La tarjeta viene cerrada: se abre a propósito, no de pasada. */
@@ -594,4 +648,15 @@ details[open] > .titulo-plegable::before{content:'▾ '}
    van de una en una para que ninguna se parta a media línea. */
 @media (max-width:560px){
   .palomitas-bitacora .palomitas-campos{grid-template-columns:1fr}
+}
+
+/* La ventana del expediente en el teléfono: pantalla completa, sin bordes que
+   roben ancho, y el botón de guardar siempre a la mano. */
+@media (max-width:560px){
+  .ventana{padding:0}
+  .ventana-caja{width:100%; height:100%; max-height:100%; border-radius:0}
+  .ventana-barra,.ventana-cuerpo,.ventana-pie{padding-left:16px; padding-right:16px}
+  .ventana-pie{flex-direction:column-reverse; align-items:stretch}
+  .ventana-pie .btn{width:100%; justify-content:center; min-height:48px}
+  .exp-doc{flex-direction:column; align-items:flex-start; gap:6px}
 }
