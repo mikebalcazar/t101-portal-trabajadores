@@ -40,6 +40,10 @@
       <a id="btn-csv" class="btn suave" href="/api/admin/tabla.csv"><span class="solo-grande">⬇ Solo la tabla (CSV)</span><span class="solo-chico">⬇ CSV</span></a>
       <button id="btn-refrescar" class="btn suave"><span class="solo-grande">↻ Actualizar</span><span class="solo-chico">↻</span></button>
       <input id="buscar" placeholder="Buscar por nombre, CURP, correo…">
+      <div class="cambia-vista" role="group" aria-label="Cómo se ve la lista">
+        <button type="button" id="vista-completa" class="activa">Completa</button>
+        <button type="button" id="vista-compacta">Compacta</button>
+      </div>
     </div>
   </div>
 
@@ -85,12 +89,12 @@
     <div id="dup-lista"></div>
   </div>
 
-  <div class="tabla-caja">
+  <div class="tabla-caja" id="tabla-caja">
     <table>
       <thead>
         <tr>
           <th style="width:28px"><input type="checkbox" id="sel-todos" title="Seleccionar todos"></th>
-          <th>#</th><th>Trabajador</th><th>Contacto</th><th>NSS / CURP</th>
+          <th>#</th><th>Trabajador</th><th class="solo-compacta">RFC</th><th>Contacto</th><th>NSS / CURP</th>
           <th>Banco</th><th>Emergencia</th><th>Documentos</th><th>Estado</th><th></th>
         </tr>
       </thead>

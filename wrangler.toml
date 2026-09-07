@@ -37,7 +37,7 @@ AVISO_VERSION = "2026-09-03"
 # Versión del portal. Se ve arriba a la derecha en todas las pantallas; se sube
 # aquí en cada publicación y es la que hay que preguntar cuando alguien reporta
 # una falla, para saber qué estaba usando.
-PORTAL_VERSION = "0.6.0"
+PORTAL_VERSION = "0.6.1"
 
 # Barrido diario de la papelera: a las 4:00 UTC (10 u 11 de la noche en el centro
 # de México, según el horario). Borra de verdad lo que ya cumplió 30 días.

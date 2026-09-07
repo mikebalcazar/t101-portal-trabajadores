@@ -389,6 +389,7 @@ td .btn.chico{padding:5px 9px;font-size:12.5px}
     display:grid; grid-template-columns:auto 1fr auto; gap:4px 10px;
     grid-template-areas:
       "sel  nombre nombre"
+      "sel  rfc    rfc"
       "sel  docs   docs"
       "sel  folio  baja";
     align-items:center;
@@ -401,16 +402,17 @@ td .btn.chico{padding:5px 9px;font-size:12.5px}
   tbody td:nth-child(2){grid-area:folio; color:var(--tenue); font-size:12.5px}
   tbody td:nth-child(2)::before{content:'Folio '}
   tbody td:nth-child(3){grid-area:nombre; font-size:15.5px; line-height:1.35}
-  tbody td:nth-child(4), tbody td:nth-child(5),
-  tbody td:nth-child(6), tbody td:nth-child(7){display:none}
-  tbody td:nth-child(8){grid-area:docs; max-width:none; margin:2px 0 4px}
+  tbody td:nth-child(4){grid-area:rfc}
+  tbody td:nth-child(5), tbody td:nth-child(6),
+  tbody td:nth-child(7), tbody td:nth-child(8){display:none}
+  tbody td:nth-child(9){grid-area:docs; max-width:none; margin:2px 0 4px}
   /* El estado se pega al nombre, como una etiqueta suya */
-  tbody td:nth-child(9){grid-area:nombre; justify-self:end; align-self:start}
-  tbody td:nth-child(10){grid-area:baja; justify-self:end}
+  tbody td:nth-child(10){grid-area:nombre; justify-self:end; align-self:start}
+  tbody td:nth-child(11){grid-area:baja; justify-self:end}
   tbody td:nth-child(3) b{display:block; padding-right:96px}
   /* Los renglones sin resultados no son tarjeta */
   tbody tr:has(td[colspan]){display:block; padding:20px}
-  .celda-docs .btn.chico, .faltan summary, tbody td:nth-child(10) .btn{min-height:36px; display:inline-flex; align-items:center}
+  .celda-docs .btn.chico, .faltan summary, tbody td:nth-child(11) .btn{min-height:36px; display:inline-flex; align-items:center}
   .enlace{padding:6px 2px; display:inline-block}
 
   /* Lo primero que se busca en el teléfono es a una persona, no exportar todo.
@@ -469,6 +471,43 @@ td .btn.chico{padding:5px 9px;font-size:12.5px}
 }
 
 
+
+
+/* ══════════ la lista, completa o compacta ══════════ */
+/* La completa es para revisar a alguien. La compacta es para pasar lista: nada
+   más el nombre y el RFC, que es lo que se anda cotejando contra nómina. */
+
+.cambia-vista{display:inline-flex; border:1px solid var(--linea); border-radius:10px; overflow:hidden; background:#fff}
+.cambia-vista button{
+  border:0; background:none; padding:9px 14px; cursor:pointer;
+  font:inherit; font-size:13.5px; font-weight:600; color:var(--tenue);
+}
+.cambia-vista button + button{border-left:1px solid var(--linea)}
+.cambia-vista button.activa{background:var(--marca); color:#fff}
+.cambia-vista button:not(.activa):hover{background:var(--papel)}
+
+/* La columna del RFC solo existe en la vista compacta. */
+.solo-compacta{display:none}
+.tabla-caja.compacta .solo-compacta{display:table-cell}
+.tabla-caja.compacta tbody td:nth-child(5),
+.tabla-caja.compacta tbody td:nth-child(6),
+.tabla-caja.compacta tbody td:nth-child(7),
+.tabla-caja.compacta tbody td:nth-child(8),
+.tabla-caja.compacta tbody td:nth-child(9),
+.tabla-caja.compacta thead th:nth-child(5),
+.tabla-caja.compacta thead th:nth-child(6),
+.tabla-caja.compacta thead th:nth-child(7),
+.tabla-caja.compacta thead th:nth-child(8),
+.tabla-caja.compacta thead th:nth-child(9){display:none}
+/* Sin las columnas anchas, los renglones se pueden juntar. */
+.tabla-caja.compacta tbody td{padding-top:7px; padding-bottom:7px}
+/* El nombre y el RFC se pegan: en una lista para cotejar, tener que cruzar la
+   pantalla con el dedo entre uno y otro es justo lo que estorba. El hueco que
+   sobra se lo queda la columna del estado. */
+.tabla-caja.compacta thead th:nth-child(10){width:100%}
+.tabla-caja.compacta tbody td:nth-child(3),
+.tabla-caja.compacta tbody td:nth-child(4){white-space:nowrap}
+.tabla-caja.compacta tbody td:nth-child(4){padding-right:28px}
 
 /* ══════════ el expediente de una persona, desde el panel ══════════ */
 
@@ -659,4 +698,23 @@ details[open] > .titulo-plegable::before{content:'▾ '}
   .ventana-pie{flex-direction:column-reverse; align-items:stretch}
   .ventana-pie .btn{width:100%; justify-content:center; min-height:48px}
   .exp-doc{flex-direction:column; align-items:flex-start; gap:6px}
+}
+
+/* La vista compacta en el teléfono: la tarjeta se queda con el nombre, el RFC y
+   el folio. Sin los documentos ni el estado caben tres veces más en la pantalla,
+   que es justo para lo que sirve pasar lista. */
+@media (max-width:560px){
+  .tabla-caja.compacta .solo-compacta{display:block}
+  .tabla-caja.compacta tbody tr{
+    grid-template-areas:
+      "sel  nombre nombre"
+      "sel  rfc    folio";
+    padding:9px 12px; margin-bottom:7px;
+  }
+  .tabla-caja.compacta tbody td:nth-child(9),
+  .tabla-caja.compacta tbody td:nth-child(10),
+  .tabla-caja.compacta tbody td:nth-child(11){display:none}
+  .tabla-caja.compacta tbody td:nth-child(3) b{padding-right:0}
+  .tabla-caja.compacta tbody td:nth-child(2){justify-self:end}
+  .tabla-caja.compacta tbody td:nth-child(4){font-size:13px}
 }

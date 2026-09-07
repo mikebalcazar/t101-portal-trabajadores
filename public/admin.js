@@ -11,6 +11,13 @@ const ORDEN = ['foto','firma_bancaria','ine','ine_reverso','nss','csf','curp','c
 let trabajadores = [];
 const elegidos = new Set();
 
+// Cómo se ve la lista: completa para revisar a alguien, compacta para pasar
+// lista. Se declara aquí arriba porque el arranque de la página la lee antes de
+// llegar a las funciones que la usan.
+const VISTA = 'roster101.panel.vista';
+let vista = 'completa';
+try { if (localStorage.getItem(VISTA) === 'compacta') vista = 'compacta'; } catch { /* da igual */ }
+
 async function api(ruta, op = {}) {
   const r = await fetch(ruta, { credentials:'same-origin', ...op });
   let d = {}; try { d = await r.json(); } catch {}
@@ -35,6 +42,7 @@ $('#btn-refrescar').addEventListener('click', cargar);
 $('#buscar').addEventListener('input', pintar);
 
 async function abrir() {
+  ponVista(vista, false);   // solo acomoda; pintar viene con los datos
   await cargar();                       // si no hay sesión, esto lanza 401 y no abrimos nada
   $('#acceso').classList.add('oculto');
   $('#panel').classList.remove('oculto');
@@ -82,7 +90,7 @@ function pintar() {
   cuerpo.innerHTML = '';
   const lista = trabajadores.filter((t) => !q || JSON.stringify(t).toLowerCase().includes(q));
   if (!lista.length) {
-    cuerpo.innerHTML = '<tr><td colspan="10" class="centrado" style="padding:30px;color:var(--tenue)">Sin resultados.</td></tr>';
+    cuerpo.innerHTML = '<tr><td colspan="11" class="centrado" style="padding:30px;color:var(--tenue)">Sin resultados.</td></tr>';
     return;
   }
   for (const t of lista) {
@@ -102,7 +110,8 @@ function pintar() {
     tr.innerHTML = `
       <td><input type="checkbox" class="palomita" data-id="${t.id}"${elegidos.has(t.id) ? ' checked' : ''}></td>
       <td class="mono">${t.folio ?? ''}</td>
-      <td><button class="abre-exp" data-abrir="${t.id}" title="Abrir su expediente"><b>${esc(t.apellido_paterno)} ${esc(t.apellido_materno)}</b><br><span style="color:var(--tenue)">${esc(t.nombre)}${t.puesto ? ' · ' + esc(t.puesto) : ''}</span></button></td>
+      <td><button class="abre-exp" data-abrir="${t.id}" title="Abrir su expediente">${nombreCelda(t)}</button></td>
+      <td class="solo-compacta mono">${esc(t.rfc) || '<span style="color:var(--alerta)">falta</span>'}</td>
       <td><span class="mono">${esc(t.celular)}</span><br><span style="color:var(--tenue);font-size:12px">${esc(t.email)}</span></td>
       <td class="mono">${esc(t.nss)}<br>${esc(t.curp)}</td>
       <td>${esc(t.banco)}<br><span class="mono" style="font-size:12px">${esc(t.clabe)}</span></td>
@@ -317,7 +326,42 @@ async function pintarMarca() {
   } catch { /* si no se alcanza, se queda el texto genérico */ }
 }
 
-(async () => { pintarMarca(); try { await abrir(); } catch {} })();
+// Sin sesión, `abrir` truena con 401 y se queda la pantalla de la clave: eso es
+// lo normal. Cualquier otro error sí se enseña, para que un panel en blanco no
+// se vea igual que un panel que no ha entrado.
+(async () => {
+  pintarMarca();
+  try { await abrir(); } catch (e) { if (e.estado !== 401) console.error('No se pudo abrir el panel:', e); }
+})();
+
+/* ─────────── cómo se ve la lista ─────────── */
+// La vista completa es para revisar a alguien; la compacta, para pasar lista.
+// Con veinte columnas no se puede leer de corrido quién es quién, así que la
+// compacta deja nada más el nombre —empezando por apellidos, como se busca— y
+// el RFC, que es el dato que se anda cotejando contra nómina. Se acuerda de cuál
+// se dejó puesta.
+// En la vista completa el nombre va en dos renglones, con el puesto debajo. En
+// la compacta va en uno solo: son los apellidos primero y el nombre después,
+// que es como se lee una lista.
+function nombreCelda(t) {
+  const apellidos = `${esc(t.apellido_paterno)} ${esc(t.apellido_materno)}`.trim();
+  if (vista === 'compacta') {
+    return `${apellidos ? `<b>${apellidos}</b> ` : ''}${esc(t.nombre)}`.trim() || '<span style="color:var(--tenue)">(sin nombre)</span>';
+  }
+  return `<b>${apellidos}</b><br><span style="color:var(--tenue)">${esc(t.nombre)}${t.puesto ? ' · ' + esc(t.puesto) : ''}</span>`;
+}
+
+function ponVista(cual, repintar = true) {
+  vista = cual;
+  try { localStorage.setItem(VISTA, cual); } catch { /* da igual */ }
+  $('#tabla-caja').classList.toggle('compacta', cual === 'compacta');
+  $('#vista-completa').classList.toggle('activa', cual === 'completa');
+  $('#vista-compacta').classList.toggle('activa', cual === 'compacta');
+  if (repintar) pintar();
+}
+
+$('#vista-completa').addEventListener('click', () => ponVista('completa'));
+$('#vista-compacta').addEventListener('click', () => ponVista('compacta'));
 
 /* ─────────── el expediente de una persona, como ella lo ve ─────────── */
 // Abrirlo desde el panel evita el ida y vuelta de "¿qué te falta?" por teléfono:
