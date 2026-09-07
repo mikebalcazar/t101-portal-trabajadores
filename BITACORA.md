@@ -4,6 +4,7 @@ Cada renglón es una versión publicada. La más reciente hasta arriba.
 
 | Fecha | Versión | Qué cambió |
 |---|---|---|
+| 2026-09-07 | — | **roster101 central quedó instalado.** Se corrió el flujo de instalación —primero en simulacro, luego de verdad—: se creó su base `roster101-central`, su bucket `roster101-central-docs`, se aplicó el esquema, se publicó el Worker, se le pusieron sus secretos y contestó `{"ok":true,"servicio":"roster101 central"}`. La clave del panel maestro se generó ahí y se mandó por correo; no quedó escrita en el repositorio. De aquí en adelante el central se publica solo junto con los clientes. Falta el secreto `GITHUB_TOKEN_ALTAS`: sin él, el botón de "abrirle su portal" enseña los datos para correr el alta a mano en vez de dispararla. |
 | 2026-09-07 | 0.7.0 | **Cada pantalla tiene su nombre, y cada movimiento su capa.** Se llaman *portal del trabajador*, *panel de la empresa* y *panel maestro* —arriba está la tabla de quién entra a cuál—, y así se dicen ahora en los títulos, las barras, los pies y el correo de bienvenida. En la bitácora, cada movimiento sabe a qué capa pertenece: lo del portal y los expedientes se lee en el panel de la empresa; lo del panel —quién entró, quién descargó, quién dio de baja— se sigue apuntando igual pero ya no se enseña ahí. "Capturaron por él" se queda con los expedientes, a nombre del trabajador, porque es alguien escribiendo en su hoja. |
 | 2026-09-07 | 0.6.1 | **Vista compacta: la lista para pasar lista.** Un interruptor arriba cambia entre *Completa* —la de siempre, para revisar a alguien— y *Compacta*, que deja nada más el nombre, empezando por apellidos, y el RFC pegado a un lado. El renglón pasa de 63 a 46 píxeles y en el teléfono la tarjeta de 165 a 92, así que cabe casi el doble de gente en la pantalla. Sigue sirviendo para lo mismo: se palomea para las fichas, el nombre abre el expediente y el buscador encuentra por RFC. Se acuerda de cuál se dejó puesta. De paso: un error al abrir el panel ya no se traga en silencio —un panel en blanco se veía igual que uno que no ha entrado—. |
 | 2026-09-07 | 0.6.0 | **El expediente de cada quien se abre desde el panel, y ya se ve qué le falta de escribir.** Antes el "Faltan 9" contaba nada más los papeles: alguien podía tener su carátula bancaria subida y ni un dato de su cuenta capturado, y el panel no lo decía. Ahora cuenta las dos cosas y las separa: *por escribir* y *por entregar*. Tocando el nombre de la persona —o con doble clic en su renglón— se abre su formato tal como ella lo ve, con lo que escribió, lo que le falta marcado en rojo, y sus documentos. Desde ahí se puede capturar por ella lo que haga falta, y queda apuntado en la bitácora con el nombre de a quién se le tocó el expediente. **Los documentos se ven, no se tocan:** subirlos y borrarlos sigue siendo cosa suya, y el servidor no tiene ninguna ruta que permita otra cosa. El aviso de privacidad tampoco se puede aceptar por nadie. |
@@ -69,10 +70,15 @@ actualiza los secretos y comprueba que el portal responda.
 | | |
 |---|---|
 | Repositorio | https://github.com/mikebalcazar/t101-portal-trabajadores (privado) |
-| Portal | https://t101-portal.mike-929.workers.dev |
-| Administración | https://t101-portal.mike-929.workers.dev/admin |
-| Clave de admin | En `llaves.env` y en el secreto `CLAVE_ADMIN` del repositorio. **No se escribe aquí:** este archivo se sube a GitHub. |
+| **1** · Portal del trabajador (Taller 101) | https://t101-portal.mike-929.workers.dev |
+| **2** · Panel de la empresa (Taller 101) | https://t101-portal.mike-929.workers.dev/admin |
+| **3** · Panel maestro | https://roster101-central.mike-929.workers.dev/roster |
+| Registro de empresa (la liga que se les manda) | https://roster101-central.mike-929.workers.dev |
+| Clave del panel de la empresa | Secreto `CLAVE_ADMIN` del repositorio. **No se escribe aquí:** este archivo se sube a GitHub. |
+| Clave del panel maestro | Se generó en la instalación y se mandó por correo. **No existe en el repositorio:** vive nada más en el Worker. |
 | Correos | Resend, desde `expedientes@envios.taller101.mx` |
+
+Cada empujón a `main` publica los dos: el Worker de cada cliente y el central.
 
 Para subir cambios desde esta computadora: doble clic en `SUBIR-A-GITHUB.bat`.
 Para publicar sin pasar por GitHub (respaldo): `PUBLICAR.bat`.
