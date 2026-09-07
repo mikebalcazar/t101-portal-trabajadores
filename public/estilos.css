@@ -468,6 +468,39 @@ td .btn.chico{padding:5px 9px;font-size:12.5px}
   .barra button{padding:9px 13px; min-height:40px}
 }
 
+
+/* ══════════ bitácora: quién pidió entrar y cuándo ══════════ */
+
+/* La tarjeta viene cerrada: se abre a propósito, no de pasada. */
+.titulo-plegable{cursor:pointer; list-style:none}
+.titulo-plegable::-webkit-details-marker{display:none}
+.titulo-plegable::before{content:'▸ '; color:var(--tenue); font-weight:700}
+details[open] > .titulo-plegable::before{content:'▾ '}
+
+.filtros-bitacora{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:16px}
+.filtros-bitacora select{width:auto; min-width:150px}
+.filtros-bitacora input{width:auto; flex:1; min-width:170px}
+
+.bitacora{margin-top:12px}
+.bit-dia{
+  margin:16px 0 6px; padding-bottom:4px; border-bottom:1px solid var(--linea);
+  font-weight:700; font-size:13px; color:var(--tenue); text-transform:capitalize;
+}
+.bit-dia:first-child{margin-top:8px}
+
+/* Hora, quién y qué pasó: tres columnas para poder leer la lista en vertical,
+   sin ir persiguiendo el dato de renglón en renglón. */
+.bit-renglon{
+  display:grid; grid-template-columns:78px minmax(150px,.55fr) minmax(0,1fr);
+  gap:10px; align-items:baseline; padding:7px 8px; border-radius:8px; font-size:14px;
+}
+.bit-renglon.bien .bit-dice{color:var(--ok)}
+.bit-renglon.mal .bit-dice{color:var(--alerta); font-weight:600}
+.bit-hora{color:var(--tenue); font-size:12.5px; font-variant-numeric:tabular-nums; white-space:nowrap}
+.bit-quien{word-break:break-all; font-size:13px}
+.bit-dice{min-width:0}
+.bit-detalle{color:var(--tenue); font-size:12.5px}
+
 /* ══════════ escáner de documentos ══════════ */
 /* La pantalla completa donde se encuadra, se ajustan las esquinas y se ve el
    resultado antes de guardarlo. Vive aparte de la cámara del retrato: aquélla
@@ -538,3 +571,13 @@ td .btn.chico{padding:5px 9px;font-size:12.5px}
 .esc-etiqueta{margin:0; color:#fff; font-size:13px; opacity:.92; text-shadow:0 1px 5px rgba(0,0,0,.85); text-align:center}
 .esc-botones{display:flex; gap:10px; width:100%; max-width:460px}
 .esc-botones .btn{flex:1; padding:14px 12px; min-height:50px; justify-content:center}
+
+/* La bitácora en el teléfono: la hora manda el renglón, el correo y lo que pasó
+   van abajo. En tres columnas de 360 px no se lee ninguno de los tres. */
+@media (max-width:560px){
+  .bit-renglon{grid-template-columns:1fr; gap:2px; padding:9px 8px; border-bottom:1px solid var(--linea)}
+  .bit-hora{font-weight:700; color:var(--tinta)}
+  .bit-quien{font-size:14px}
+  .filtros-bitacora select,.filtros-bitacora input{width:100%; min-width:0; flex:none}
+  .filtros-bitacora #bit-csv{width:100%; justify-content:center}
+}

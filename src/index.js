@@ -152,12 +152,14 @@ app.post('/api/codigo', async (c) => {
   // Sin llave de correo no hay forma de entregar el código: mejor decirlo de frente
   // que dejar al trabajador esperando un correo que nunca va a llegar.
   if (!c.env.RESEND_API_KEY && c.env.MODO_PRUEBA !== '1') {
+    await registra(c.env, email, 'codigo_no_enviado', 'el portal no tenía configurada la llave de correo');
     return err(c, `El portal todavía no está habilitado para recibir registros. Avísale a administración de ${empresaDe(c.env)}.`, 503);
   }
 
   const previo = await c.env.DB.prepare('SELECT enviado_en FROM codigos WHERE email = ?').bind(email).first();
   const t = Date.now();
   if (previo && t - previo.enviado_en < 45_000) {
+    await registra(c.env, email, 'codigo_repetido', 'pidió otro código antes de los 45 segundos');
     return err(c, 'Ya enviamos un código hace un momento. Revisa tu correo o espera 45 segundos.', 429);
   }
 
@@ -172,6 +174,7 @@ app.post('/api/codigo', async (c) => {
   try {
     await enviarCorreo(c.env, { para: email, ...msg });
   } catch (e) {
+    await registra(c.env, email, 'codigo_no_enviado', 'el correo no salió: revisa que la dirección exista');
     return err(c, 'No pudimos enviar el correo. Verifica la dirección o avísale a administración.', 502);
   }
   await registra(c.env, email, 'codigo_enviado');
@@ -194,6 +197,7 @@ app.post('/api/entrar', async (c) => {
   const hash = await sha256(codigo + '|' + email + '|' + secreto(c.env));
   if (!igualSeguro(hash, fila.hash)) {
     await c.env.DB.prepare('UPDATE codigos SET intentos = intentos + 1 WHERE email = ?').bind(email).run();
+    await registra(c.env, email, 'codigo_malo', `intento ${fila.intentos + 1} de 5`);
     return err(c, 'Código incorrecto.', 401);
   }
   await c.env.DB.prepare('DELETE FROM codigos WHERE email = ?').bind(email).run();
@@ -744,6 +748,112 @@ app.get('/api/admin/exportar', exigeAdmin, async (c) => {
     headers: {
       'Content-Type': 'application/zip',
       'Content-Disposition': `attachment; filename="${soloAscii(`Expedientes ${empresaDe(c.env)} ${fecha}`)}.zip"`,
+    },
+  });
+});
+
+// ─────────────────────────── bitácora ───────────────────────────
+// Todo lo que pasa en el portal ya se venía apuntando desde el primer día; lo
+// que faltaba era poder leerlo. Se agrupa como lo pregunta quien lo consulta:
+// quién pidió entrar es una pregunta, y quién movió expedientes es otra.
+
+const GRUPOS_BITACORA = {
+  accesos: ['codigo_enviado', 'codigo_no_enviado', 'codigo_repetido', 'codigo_malo', 'ingreso', 'alta'],
+  expedientes: ['expediente_guardado', 'documento_subido', 'aviso_aceptado'],
+  administracion: ['ingreso_admin', 'admin_clave_mala', 'admin_bloqueado', 'exportacion',
+    'fichas_pdf', 'fichas_zip', 'baja_trabajador', 'restaurar_trabajador', 'borrado_definitivo'],
+};
+
+// Cada acción, dicha como se la contaría alguien a otra persona.
+const DICE_BITACORA = {
+  codigo_enviado: 'Pidió entrar — se le mandó su código',
+  codigo_no_enviado: 'Pidió entrar — el código NO salió',
+  codigo_repetido: 'Pidió otro código muy seguido',
+  codigo_malo: 'Escribió mal el código',
+  ingreso: 'Entró al portal',
+  alta: 'Entró por primera vez',
+  aviso_aceptado: 'Aceptó el aviso de privacidad',
+  expediente_guardado: 'Guardó su expediente',
+  documento_subido: 'Subió un documento',
+  ingreso_admin: 'Entró a administración',
+  admin_clave_mala: 'Falló la clave de administración',
+  admin_bloqueado: 'Se bloqueó por fallar la clave',
+  exportacion: 'Exportó todos los expedientes',
+  fichas_pdf: 'Descargó fichas en PDF',
+  fichas_zip: 'Descargó fichas con documentos',
+  baja_trabajador: 'Dio de baja a un trabajador',
+  restaurar_trabajador: 'Restauró a un trabajador de la papelera',
+  borrado_definitivo: 'Borró un expediente para siempre',
+};
+
+// Arma la consulta con los filtros que vengan. Devuelve el SQL de condiciones y
+// sus valores, para que la lista y el CSV pregunten exactamente lo mismo.
+function filtrosBitacora(c) {
+  const grupo = String(c.req.query('grupo') || 'accesos');
+  const q = String(c.req.query('q') || '').trim().toLowerCase().slice(0, 80);
+  const dias = Math.min(730, Math.max(1, Number(c.req.query('dias')) || 30));
+
+  const donde = [];
+  const valores = [];
+
+  const acciones = GRUPOS_BITACORA[grupo];
+  if (acciones) {
+    donde.push(`accion IN (${acciones.map(() => '?').join(',')})`);
+    valores.push(...acciones);
+  }
+
+  const desde = new Date(Date.now() - dias * 86400_000).toISOString();
+  donde.push('cuando >= ?');
+  valores.push(desde);
+
+  if (q) {
+    donde.push('(lower(quien) LIKE ? OR lower(detalle) LIKE ?)');
+    valores.push(`%${q}%`, `%${q}%`);
+  }
+
+  return { sql: donde.length ? 'WHERE ' + donde.join(' AND ') : '', valores, grupo, q, dias };
+}
+
+app.get('/api/admin/bitacora', exigeAdmin, async (c) => {
+  const f = filtrosBitacora(c);
+  const porPagina = 150;
+  const pagina = Math.max(0, Number(c.req.query('pagina')) || 0);
+
+  const total = await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM bitacora ${f.sql}`)
+    .bind(...f.valores).first();
+  const { results } = await c.env.DB.prepare(
+    `SELECT cuando, quien, accion, detalle FROM bitacora ${f.sql} ORDER BY cuando DESC LIMIT ? OFFSET ?`
+  ).bind(...f.valores, porPagina, pagina * porPagina).all();
+
+  return c.json({
+    renglones: (results || []).map((r) => ({ ...r, dice: DICE_BITACORA[r.accion] || r.accion })),
+    total: total?.n || 0,
+    pagina,
+    por_pagina: porPagina,
+    grupo: f.grupo,
+    dias: f.dias,
+  });
+});
+
+app.get('/api/admin/bitacora.csv', exigeAdmin, async (c) => {
+  const f = filtrosBitacora(c);
+  const { results } = await c.env.DB.prepare(
+    `SELECT cuando, quien, accion, detalle FROM bitacora ${f.sql} ORDER BY cuando DESC LIMIT 20000`
+  ).bind(...f.valores).all();
+
+  const filas = [['Fecha', 'Hora', 'Quién', 'Qué pasó', 'Detalle'].join(',')];
+  for (const r of results || []) {
+    const d = new Date(r.cuando);
+    // La hora se escribe en la del centro de México, que es la que ve quien lee.
+    const fecha = d.toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit' });
+    const hora = d.toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    filas.push([fecha, hora, r.quien, DICE_BITACORA[r.accion] || r.accion, r.detalle || ''].map(csvCampo).join(','));
+  }
+
+  return new Response('\ufeff' + filas.join('\n'), {
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${soloAscii(`Bitacora ${f.grupo} ${empresaDe(c.env)}`)}.csv"`,
     },
   });
 });

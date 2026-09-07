@@ -51,6 +51,9 @@ CREATE TABLE IF NOT EXISTS bitacora (
   accion    TEXT NOT NULL,
   detalle   TEXT DEFAULT ''
 );
+-- Se lee al revés y acotada a los últimos días: sin índice se recorre entera.
+CREATE INDEX IF NOT EXISTS idx_bitacora_cuando ON bitacora(cuando DESC);
+CREATE INDEX IF NOT EXISTS idx_bitacora_accion ON bitacora(accion);
 
 -- Constancia de que el trabajador leyó y aceptó el aviso de privacidad.
 -- Tabla aparte (y no columnas nuevas en "trabajadores") para que el esquema se

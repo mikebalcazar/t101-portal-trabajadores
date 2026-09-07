@@ -301,3 +301,93 @@ async function pintarMarca() {
 }
 
 (async () => { pintarMarca(); try { await abrir(); } catch {} })();
+
+/* ─────────── bitácora: quién pidió entrar y cuándo ─────────── */
+// Solo se carga cuando se abre la tarjeta: es la única parte del panel que puede
+// traer miles de renglones, y casi siempre se abre a propósito, no de pasada.
+
+let bitPagina = 0;
+let bitRenglones = [];
+
+const COLOR_ACCION = {
+  codigo_no_enviado: 'mal', codigo_malo: 'mal', admin_clave_mala: 'mal', admin_bloqueado: 'mal',
+  borrado_definitivo: 'mal', baja_trabajador: 'mal',
+  codigo_enviado: 'bien', ingreso: 'bien', alta: 'bien',
+};
+
+// Fecha y hora en la del centro de México, que es la que ve quien lee el panel.
+function fechaHora(iso) {
+  const d = new Date(iso);
+  const zona = { timeZone: 'America/Mexico_City' };
+  const dia = d.toLocaleDateString('es-MX', { ...zona, day: '2-digit', month: 'short', year: 'numeric' });
+  const hora = d.toLocaleTimeString('es-MX', { ...zona, hour: '2-digit', minute: '2-digit', hour12: true });
+  return { dia, hora };
+}
+
+function filtrosBit() {
+  const p = new URLSearchParams();
+  p.set('grupo', $('#bit-grupo').value);
+  p.set('dias', $('#bit-dias').value);
+  const q = $('#bit-buscar').value.trim();
+  if (q) p.set('q', q);
+  return p;
+}
+
+async function cargarBitacora(seguir = false) {
+  const lista = $('#bit-lista');
+  bitPagina = seguir ? bitPagina + 1 : 0;
+  if (!seguir) { bitRenglones = []; lista.innerHTML = ''; $('#bit-resumen').textContent = 'Cargando…'; }
+
+  const p = filtrosBit();
+  $('#bit-csv').href = '/api/admin/bitacora.csv?' + p.toString();
+  p.set('pagina', String(bitPagina));
+
+  try {
+    const d = await api('/api/admin/bitacora?' + p.toString());
+    bitRenglones = bitRenglones.concat(d.renglones || []);
+    pintarBitacora(d.total);
+  } catch (e) {
+    $('#bit-resumen').textContent = 'No se pudo leer la bitácora: ' + e.message;
+  }
+}
+
+function pintarBitacora(total) {
+  const lista = $('#bit-lista');
+  if (!bitRenglones.length) {
+    lista.innerHTML = '<p class="ayuda" style="margin:12px 0 0">No hay nada apuntado con esos filtros.</p>';
+    $('#bit-resumen').textContent = '';
+    $('#bit-mas').classList.add('oculto');
+    return;
+  }
+
+  // Se agrupa por día: casi siempre lo que se busca es "¿quién pidió entrar el martes?"
+  let diaAnterior = '';
+  lista.innerHTML = bitRenglones.map((r) => {
+    const { dia, hora } = fechaHora(r.cuando);
+    const encabezado = dia === diaAnterior ? '' : `<div class="bit-dia">${esc(dia)}</div>`;
+    diaAnterior = dia;
+    const color = COLOR_ACCION[r.accion] || '';
+    return `${encabezado}
+      <div class="bit-renglon ${color}">
+        <span class="bit-hora">${esc(hora)}</span>
+        <span class="bit-quien">${esc(r.quien)}</span>
+        <span class="bit-dice">${esc(r.dice)}${r.detalle ? ` <span class="bit-detalle">· ${esc(r.detalle)}</span>` : ''}</span>
+      </div>`;
+  }).join('');
+
+  $('#bit-resumen').innerHTML = `<b>${bitRenglones.length}</b> de <b>${total}</b> movimientos.`;
+  $('#bit-mas').classList.toggle('oculto', bitRenglones.length >= total);
+}
+
+$('#caja-bitacora').addEventListener('toggle', () => {
+  if ($('#caja-bitacora').open && !bitRenglones.length) cargarBitacora();
+});
+$('#bit-grupo').addEventListener('change', () => cargarBitacora());
+$('#bit-dias').addEventListener('change', () => cargarBitacora());
+$('#bit-mas').addEventListener('click', () => cargarBitacora(true));
+
+let esperaBusqueda;
+$('#bit-buscar').addEventListener('input', () => {
+  clearTimeout(esperaBusqueda);
+  esperaBusqueda = setTimeout(() => cargarBitacora(), 350);
+});

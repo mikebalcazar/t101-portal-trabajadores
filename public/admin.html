@@ -97,6 +97,34 @@
       <tbody id="cuerpo"></tbody>
     </table>
   </div>
+  <details class="tarjeta" id="caja-bitacora">
+    <summary class="titulo-plegable"><h2 style="display:inline;margin:0">📋 Quién ha pedido entrar</h2>
+      <span class="ayuda" style="display:block;margin-top:4px">Cada correo que pidió su código, con fecha y hora. También se ve quién entró y qué se movió.</span>
+    </summary>
+    <div class="filtros-bitacora">
+      <select id="bit-grupo" aria-label="Qué mostrar">
+        <option value="accesos">Accesos: quién pidió entrar</option>
+        <option value="expedientes">Expedientes: qué llenaron y subieron</option>
+        <option value="administracion">Administración: quién bajó qué</option>
+        <option value="todo">Todo</option>
+      </select>
+      <select id="bit-dias" aria-label="Desde cuándo">
+        <option value="1">Hoy y ayer</option>
+        <option value="7">Últimos 7 días</option>
+        <option value="30" selected>Últimos 30 días</option>
+        <option value="90">Últimos 3 meses</option>
+        <option value="730">Todo lo que haya</option>
+      </select>
+      <input id="bit-buscar" placeholder="Buscar un correo…">
+      <a id="bit-csv" class="btn suave" href="/api/admin/bitacora.csv">⬇ CSV</a>
+    </div>
+    <p class="ayuda" id="bit-resumen" style="margin:10px 0 0">Cargando…</p>
+    <div id="bit-lista" class="bitacora"></div>
+    <div style="text-align:center;margin-top:12px">
+      <button id="bit-mas" class="btn suave oculto">Ver más</button>
+    </div>
+  </details>
+
   <div id="papelera" class="tarjeta oculto">
     <h2 style="margin-top:0">🗑 Papelera</h2>
     <p class="ayuda">Quien se da de baja se queda aquí <b>30 días</b> por si fue un error. Pasados los 30, se borra de verdad con todos sus documentos y ya no hay vuelta atrás.</p>
