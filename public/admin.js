@@ -302,18 +302,17 @@ async function pintarMarca() {
 
 (async () => { pintarMarca(); try { await abrir(); } catch {} })();
 
-/* ─────────── bitácora: quién pidió entrar y cuándo ─────────── */
-// Solo se carga cuando se abre la tarjeta: es la única parte del panel que puede
-// traer miles de renglones, y casi siempre se abre a propósito, no de pasada.
+/* ─────────── bitácora: todo lo que pasa, y qué se ve ─────────── */
+// Se carga solo cuando se abre la tarjeta: es la única parte del panel que puede
+// traer miles de renglones. Qué se ve lo deciden las casillas, no el servidor:
+// de entrada viene prendida la única que casi siempre se consulta —quién pidió
+// su código— y lo demás se palomea cuando hace falta.
 
 let bitPagina = 0;
 let bitRenglones = [];
-
-const COLOR_ACCION = {
-  codigo_no_enviado: 'mal', codigo_malo: 'mal', admin_clave_mala: 'mal', admin_bloqueado: 'mal',
-  borrado_definitivo: 'mal', baja_trabajador: 'mal',
-  codigo_enviado: 'bien', ingreso: 'bien', alta: 'bien',
-};
+let bitTipos = [];                     // el catálogo, tal como lo manda el servidor
+let bitElegidas = null;                // se llena abajo con lo de la vez pasada, o con el default
+const RECUERDO = 'roster101.bitacora.acciones';
 
 // Fecha y hora en la del centro de México, que es la que ve quien lee el panel.
 function fechaHora(iso) {
@@ -324,10 +323,28 @@ function fechaHora(iso) {
   return { dia, hora };
 }
 
+// Lo que se palomeó la última vez. Si el navegador no deja guardar, no pasa nada:
+// se vuelve al default y la bitácora sigue sirviendo igual.
+function recordar() {
+  try { localStorage.setItem(RECUERDO, JSON.stringify([...bitElegidas])); } catch { /* da igual */ }
+}
+function recordado() {
+  try {
+    const v = JSON.parse(localStorage.getItem(RECUERDO) || 'null');
+    return Array.isArray(v) ? v : null;
+  } catch { return null; }
+}
+
+// Lo palomeado la vez pasada se lee antes de la primera consulta, para que la
+// lista y las casillas nunca enseñen cosas distintas.
+bitElegidas = recordado() ? new Set(recordado()) : null;
+
 function filtrosBit() {
   const p = new URLSearchParams();
-  p.set('grupo', $('#bit-grupo').value);
   p.set('dias', $('#bit-dias').value);
+  // Sin nada palomeado no se pide nada: el servidor volvería al default y se
+  // vería justo lo que se acaba de apagar.
+  if (bitElegidas) p.set('acciones', [...bitElegidas].join(','));
   const q = $('#bit-buscar').value.trim();
   if (q) p.set('q', q);
   return p;
@@ -338,17 +355,69 @@ async function cargarBitacora(seguir = false) {
   bitPagina = seguir ? bitPagina + 1 : 0;
   if (!seguir) { bitRenglones = []; lista.innerHTML = ''; $('#bit-resumen').textContent = 'Cargando…'; }
 
+  // Nada palomeado: ni se pregunta, se dice y ya.
+  if (bitElegidas && !bitElegidas.size) {
+    bitRenglones = [];
+    lista.innerHTML = '<p class="ayuda" style="margin:12px 0 0">No hay nada palomeado. Escoge arriba qué quieres ver.</p>';
+    $('#bit-resumen').textContent = '';
+    $('#bit-mas').classList.add('oculto');
+    $('#bit-csv').classList.add('oculto');
+    if (!bitTipos.length) { bitTipos = (await api('/api/admin/bitacora?dias=1&pagina=0')).tipos || []; pintarCasillas(); }
+    return;
+  }
+  $('#bit-csv').classList.remove('oculto');
+
   const p = filtrosBit();
   $('#bit-csv').href = '/api/admin/bitacora.csv?' + p.toString();
   p.set('pagina', String(bitPagina));
 
   try {
     const d = await api('/api/admin/bitacora?' + p.toString());
+    if (d.tipos && !bitTipos.length) { bitTipos = d.tipos; pintarCasillas(); }
     bitRenglones = bitRenglones.concat(d.renglones || []);
     pintarBitacora(d.total);
   } catch (e) {
     $('#bit-resumen').textContent = 'No se pudo leer la bitácora: ' + e.message;
   }
+}
+
+// Las casillas salen del catálogo del servidor, agrupadas como vienen.
+function pintarCasillas() {
+  if (!bitElegidas) bitElegidas = new Set(bitTipos.filter((t) => t.sola).map((t) => t.accion));
+  else {
+    // Si el catálogo cambió, lo que ya no existe se cae solo.
+    const validas = new Set(bitTipos.map((t) => t.accion));
+    bitElegidas = new Set([...bitElegidas].filter((a) => validas.has(a)));
+  }
+  const grupos = [];
+  for (const t of bitTipos) {
+    let g = grupos.find((x) => x.nombre === t.grupo);
+    if (!g) { g = { nombre: t.grupo, tipos: [] }; grupos.push(g); }
+    g.tipos.push(t);
+  }
+  $('#bit-tipos').innerHTML = grupos.map((g) => `
+    <div class="grupo-tipos">
+      <div class="etq-grupo">${esc(g.nombre)}</div>
+      <div class="palomitas-campos">
+        ${g.tipos.map((t) => `<label><input type="checkbox" class="bit-tipo" data-accion="${esc(t.accion)}"${bitElegidas.has(t.accion) ? ' checked' : ''}> ${esc(t.corto)}</label>`).join('')}
+      </div>
+    </div>`).join('');
+
+  for (const casilla of document.querySelectorAll('.bit-tipo')) {
+    casilla.addEventListener('change', () => {
+      if (casilla.checked) bitElegidas.add(casilla.dataset.accion);
+      else bitElegidas.delete(casilla.dataset.accion);
+      recordar();
+      cargarBitacora();
+    });
+  }
+}
+
+function marcarTodas(cuales) {
+  bitElegidas = new Set(cuales);
+  for (const c of document.querySelectorAll('.bit-tipo')) c.checked = bitElegidas.has(c.dataset.accion);
+  recordar();
+  cargarBitacora();
 }
 
 function pintarBitacora(total) {
@@ -366,9 +435,8 @@ function pintarBitacora(total) {
     const { dia, hora } = fechaHora(r.cuando);
     const encabezado = dia === diaAnterior ? '' : `<div class="bit-dia">${esc(dia)}</div>`;
     diaAnterior = dia;
-    const color = COLOR_ACCION[r.accion] || '';
     return `${encabezado}
-      <div class="bit-renglon ${color}">
+      <div class="bit-renglon ${esc(r.tono || '')}">
         <span class="bit-hora">${esc(hora)}</span>
         <span class="bit-quien">${esc(r.quien)}</span>
         <span class="bit-dice">${esc(r.dice)}${r.detalle ? ` <span class="bit-detalle">· ${esc(r.detalle)}</span>` : ''}</span>
@@ -380,11 +448,13 @@ function pintarBitacora(total) {
 }
 
 $('#caja-bitacora').addEventListener('toggle', () => {
-  if ($('#caja-bitacora').open && !bitRenglones.length) cargarBitacora();
+  if ($('#caja-bitacora').open && !bitRenglones.length && !bitTipos.length) cargarBitacora();
 });
-$('#bit-grupo').addEventListener('change', () => cargarBitacora());
 $('#bit-dias').addEventListener('change', () => cargarBitacora());
 $('#bit-mas').addEventListener('click', () => cargarBitacora(true));
+$('#bit-todo').addEventListener('click', () => marcarTodas(bitTipos.map((t) => t.accion)));
+$('#bit-nada').addEventListener('click', () => marcarTodas([]));
+$('#bit-normal').addEventListener('click', () => marcarTodas(bitTipos.filter((t) => t.sola).map((t) => t.accion)));
 
 let esperaBusqueda;
 $('#bit-buscar').addEventListener('input', () => {

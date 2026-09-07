@@ -754,50 +754,67 @@ app.get('/api/admin/exportar', exigeAdmin, async (c) => {
 
 // ─────────────────────────── bitácora ───────────────────────────
 // Todo lo que pasa en el portal ya se venía apuntando desde el primer día; lo
-// que faltaba era poder leerlo. Se agrupa como lo pregunta quien lo consulta:
-// quién pidió entrar es una pregunta, y quién movió expedientes es otra.
+// que faltaba era poder leerlo. Se enseña todo junto, en un solo hilo, y son
+// las casillas las que deciden qué se ve: quien busca "¿a quién le mandamos su
+// código?" no quiere el mismo renglón que quien busca "¿ya subió sus papeles?".
 
-const GRUPOS_BITACORA = {
-  accesos: ['codigo_enviado', 'codigo_no_enviado', 'codigo_repetido', 'codigo_malo', 'ingreso', 'alta'],
-  expedientes: ['expediente_guardado', 'documento_subido', 'aviso_aceptado'],
-  administracion: ['ingreso_admin', 'admin_clave_mala', 'admin_bloqueado', 'exportacion',
-    'fichas_pdf', 'fichas_zip', 'baja_trabajador', 'restaurar_trabajador', 'borrado_definitivo'],
-};
+// El catálogo manda. `dice` es lo que se lee en el renglón; `corto`, lo que se
+// lee en la casilla; `grupo`, en qué montón va. La marca `sola` es la que viene
+// prendida de entrada: pedir acceso es lo que se consulta casi siempre.
+const ACCIONES_BITACORA = [
+  { accion: 'codigo_enviado', grupo: 'Accesos', corto: 'Pidió su código', dice: 'Pidió entrar — se le mandó su código', tono: 'bien', sola: true },
+  { accion: 'ingreso', grupo: 'Accesos', corto: 'Usó su acceso', dice: 'Usó su acceso — entró al portal', tono: 'bien' },
+  { accion: 'alta', grupo: 'Accesos', corto: 'Entró por primera vez', dice: 'Entró por primera vez', tono: 'bien' },
+  { accion: 'codigo_malo', grupo: 'Accesos', corto: 'Escribió mal el código', dice: 'Escribió mal el código', tono: 'mal' },
+  { accion: 'codigo_no_enviado', grupo: 'Accesos', corto: 'El código no salió', dice: 'Pidió entrar — el código NO salió', tono: 'mal' },
+  { accion: 'codigo_repetido', grupo: 'Accesos', corto: 'Pidió otro muy seguido', dice: 'Pidió otro código muy seguido', tono: '' },
 
-// Cada acción, dicha como se la contaría alguien a otra persona.
-const DICE_BITACORA = {
-  codigo_enviado: 'Pidió entrar — se le mandó su código',
-  codigo_no_enviado: 'Pidió entrar — el código NO salió',
-  codigo_repetido: 'Pidió otro código muy seguido',
-  codigo_malo: 'Escribió mal el código',
-  ingreso: 'Entró al portal',
-  alta: 'Entró por primera vez',
-  aviso_aceptado: 'Aceptó el aviso de privacidad',
-  expediente_guardado: 'Guardó su expediente',
-  documento_subido: 'Subió un documento',
-  ingreso_admin: 'Entró a administración',
-  admin_clave_mala: 'Falló la clave de administración',
-  admin_bloqueado: 'Se bloqueó por fallar la clave',
-  exportacion: 'Exportó todos los expedientes',
-  fichas_pdf: 'Descargó fichas en PDF',
-  fichas_zip: 'Descargó fichas con documentos',
-  baja_trabajador: 'Dio de baja a un trabajador',
-  restaurar_trabajador: 'Restauró a un trabajador de la papelera',
-  borrado_definitivo: 'Borró un expediente para siempre',
-};
+  { accion: 'expediente_guardado', grupo: 'Expedientes', corto: 'Guardó sus datos', dice: 'Guardó su expediente', tono: '' },
+  { accion: 'documento_subido', grupo: 'Expedientes', corto: 'Subió un documento', dice: 'Subió un documento', tono: '' },
+  { accion: 'aviso_aceptado', grupo: 'Expedientes', corto: 'Aceptó el aviso', dice: 'Aceptó el aviso de privacidad', tono: '' },
+
+  { accion: 'ingreso_admin', grupo: 'Administración', corto: 'Entró a administración', dice: 'Entró a administración', tono: '' },
+  { accion: 'admin_clave_mala', grupo: 'Administración', corto: 'Falló la clave', dice: 'Falló la clave de administración', tono: 'mal' },
+  { accion: 'admin_bloqueado', grupo: 'Administración', corto: 'Se bloqueó por fallar', dice: 'Se bloqueó por fallar la clave', tono: 'mal' },
+  { accion: 'fichas_pdf', grupo: 'Administración', corto: 'Descargó fichas', dice: 'Descargó fichas en PDF', tono: '' },
+  { accion: 'fichas_zip', grupo: 'Administración', corto: 'Descargó fichas y documentos', dice: 'Descargó fichas con documentos', tono: '' },
+  { accion: 'exportacion', grupo: 'Administración', corto: 'Exportó todo', dice: 'Exportó todos los expedientes', tono: '' },
+  { accion: 'baja_trabajador', grupo: 'Administración', corto: 'Dio de baja', dice: 'Dio de baja a un trabajador', tono: 'mal' },
+  { accion: 'restaurar_trabajador', grupo: 'Administración', corto: 'Restauró de la papelera', dice: 'Restauró a un trabajador de la papelera', tono: '' },
+  { accion: 'borrado_definitivo', grupo: 'Administración', corto: 'Borró para siempre', dice: 'Borró un expediente para siempre', tono: 'mal' },
+];
+
+const POR_ACCION = Object.fromEntries(ACCIONES_BITACORA.map((a) => [a.accion, a]));
+
+// El detalle se apuntó en corto, para el que lo escribió. Aquí se dice completo,
+// para el que lo lee: "nss" es "Constancia NSS" y "borrador" es que quedó a medias.
+function detalleLegible(accion, detalle) {
+  const d = String(detalle || '');
+  if (!d) return '';
+  if (accion === 'documento_subido') return NOMBRES_DOC[d] || d;
+  if (accion === 'expediente_guardado') return d === 'completo' ? 'quedó completo' : 'quedó en borrador';
+  if (accion === 'aviso_aceptado') return `versión ${d}`;
+  return d;
+}
+const ACCIONES_POR_DEFECTO = ACCIONES_BITACORA.filter((a) => a.sola).map((a) => a.accion);
 
 // Arma la consulta con los filtros que vengan. Devuelve el SQL de condiciones y
 // sus valores, para que la lista y el CSV pregunten exactamente lo mismo.
 function filtrosBitacora(c) {
-  const grupo = String(c.req.query('grupo') || 'accesos');
   const q = String(c.req.query('q') || '').trim().toLowerCase().slice(0, 80);
   const dias = Math.min(730, Math.max(1, Number(c.req.query('dias')) || 30));
+
+  // Solo se aceptan acciones del catálogo: lo que venga inventado se ignora, y
+  // si no queda ninguna en pie se usa la de entrada en vez de enseñarlo todo.
+  const pedidas = String(c.req.query('acciones') ?? '').split(',').map((a) => a.trim()).filter(Boolean);
+  const todas = pedidas.includes('todo');
+  let acciones = pedidas.filter((a) => POR_ACCION[a]);
+  if (!todas && !acciones.length) acciones = ACCIONES_POR_DEFECTO;
 
   const donde = [];
   const valores = [];
 
-  const acciones = GRUPOS_BITACORA[grupo];
-  if (acciones) {
+  if (!todas) {
     donde.push(`accion IN (${acciones.map(() => '?').join(',')})`);
     valores.push(...acciones);
   }
@@ -811,7 +828,7 @@ function filtrosBitacora(c) {
     valores.push(`%${q}%`, `%${q}%`);
   }
 
-  return { sql: donde.length ? 'WHERE ' + donde.join(' AND ') : '', valores, grupo, q, dias };
+  return { sql: 'WHERE ' + donde.join(' AND '), valores, acciones: todas ? [] : acciones, q, dias };
 }
 
 app.get('/api/admin/bitacora', exigeAdmin, async (c) => {
@@ -826,12 +843,19 @@ app.get('/api/admin/bitacora', exigeAdmin, async (c) => {
   ).bind(...f.valores, porPagina, pagina * porPagina).all();
 
   return c.json({
-    renglones: (results || []).map((r) => ({ ...r, dice: DICE_BITACORA[r.accion] || r.accion })),
+    renglones: (results || []).map((r) => ({
+      ...r,
+      detalle: detalleLegible(r.accion, r.detalle),
+      dice: POR_ACCION[r.accion]?.dice || r.accion,
+      tono: POR_ACCION[r.accion]?.tono || '',
+    })),
     total: total?.n || 0,
     pagina,
     por_pagina: porPagina,
-    grupo: f.grupo,
     dias: f.dias,
+    // El catálogo viaja con la respuesta para que las casillas se pinten con lo
+    // que el servidor de verdad sabe filtrar, y no con una copia que se despinte.
+    tipos: ACCIONES_BITACORA.map(({ accion, grupo, corto, sola }) => ({ accion, grupo, corto, sola: !!sola })),
   });
 });
 
@@ -847,13 +871,13 @@ app.get('/api/admin/bitacora.csv', exigeAdmin, async (c) => {
     // La hora se escribe en la del centro de México, que es la que ve quien lee.
     const fecha = d.toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit' });
     const hora = d.toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-    filas.push([fecha, hora, r.quien, DICE_BITACORA[r.accion] || r.accion, r.detalle || ''].map(csvCampo).join(','));
+    filas.push([fecha, hora, r.quien, POR_ACCION[r.accion]?.dice || r.accion, detalleLegible(r.accion, r.detalle)].map(csvCampo).join(','));
   }
 
   return new Response('\ufeff' + filas.join('\n'), {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="${soloAscii(`Bitacora ${f.grupo} ${empresaDe(c.env)}`)}.csv"`,
+      'Content-Disposition': `attachment; filename="${soloAscii(`Bitacora ${empresaDe(c.env)}`)}.csv"`,
     },
   });
 });

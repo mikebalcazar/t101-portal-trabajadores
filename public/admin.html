@@ -98,16 +98,10 @@
     </table>
   </div>
   <details class="tarjeta" id="caja-bitacora">
-    <summary class="titulo-plegable"><h2 style="display:inline;margin:0">📋 Quién ha pedido entrar</h2>
-      <span class="ayuda" style="display:block;margin-top:4px">Cada correo que pidió su código, con fecha y hora. También se ve quién entró y qué se movió.</span>
+    <summary class="titulo-plegable"><h2 style="display:inline;margin:0">📋 Movimientos</h2>
+      <span class="ayuda" style="display:block;margin-top:4px">Todo lo que pasa en el portal, con fecha y hora. De entrada se ven los correos que pidieron su código; palomea lo demás para verlo.</span>
     </summary>
     <div class="filtros-bitacora">
-      <select id="bit-grupo" aria-label="Qué mostrar">
-        <option value="accesos">Accesos: quién pidió entrar</option>
-        <option value="expedientes">Expedientes: qué llenaron y subieron</option>
-        <option value="administracion">Administración: quién bajó qué</option>
-        <option value="todo">Todo</option>
-      </select>
       <select id="bit-dias" aria-label="Desde cuándo">
         <option value="1">Hoy y ayer</option>
         <option value="7">Últimos 7 días</option>
@@ -117,6 +111,14 @@
       </select>
       <input id="bit-buscar" placeholder="Buscar un correo…">
       <a id="bit-csv" class="btn suave" href="/api/admin/bitacora.csv">⬇ CSV</a>
+    </div>
+    <div class="palomitas-bitacora">
+      <p class="rotulo-campos">Qué se ve
+        <button type="button" id="bit-nada" class="enlace">nada</button> ·
+        <button type="button" id="bit-todo" class="enlace">todo</button> ·
+        <button type="button" id="bit-normal" class="enlace">solo quién pidió su código</button>
+      </p>
+      <div id="bit-tipos"></div>
     </div>
     <p class="ayuda" id="bit-resumen" style="margin:10px 0 0">Cargando…</p>
     <div id="bit-lista" class="bitacora"></div>
