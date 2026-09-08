@@ -186,8 +186,14 @@ Gotchas de este entorno:
 
 ## Cómo arrancar el chat nuevo
 
-1. Conectar este repositorio y pedir: *"lee `claude/continuar.md` y
-   `BITACORA.md`"*.
+1. **Sin repositorio conectado también funciona** (8-sep-2026): el chat saca el
+   PAT de `CONTEXTO.md` (§3.3, proyecto de Claude) a `/tmp/.gh_token` y clona con
+   `https://x-access-token:$PAT@github.com/mikebalcazar/t101-portal-trabajadores.git`.
+   El proxy deja pasar la credencial (probado). Push a `main` → Actions publica.
+   Verificar el run con `curl -H "Authorization: Bearer $PAT"
+   https://api.github.com/repos/mikebalcazar/t101-portal-trabajadores/actions/runs?per_page=1`.
+   No hace falta la computadora de Mike ni que él dé clic a nada.
+   Si el repo sí viene conectado, igual: *"lee `claude/continuar.md` y `BITACORA.md`"*.
 2. Antes de cualquier cambio, `git log --oneline -5` y el último run de
    `desplegar.yml`: si no está verde, eso va primero.
 3. Un cambio = probarlo local → bitácora → versión → commit → push a `main` →
