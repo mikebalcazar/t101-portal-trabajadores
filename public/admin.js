@@ -460,6 +460,7 @@ $('#vista-compacta').addEventListener('click', () => ponVista('compacta'));
 // permita otra cosa.
 
 let expAbierto = null;   // el trabajador que está en pantalla
+let expAuto = null;      // el autoguardado de la ficha abierta
 let expCampos = [];      // el catálogo de campos, como lo manda el servidor
 
 const vent = () => $('#ventana-exp');
@@ -475,12 +476,17 @@ async function abrirExpediente(id) {
     expAbierto = d;
     expCampos = d.campos || [];
     pintarExpediente(d);
+    engancharAutoguardado(id);
   } catch (e) {
     $('#exp-cuerpo').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
   }
 }
 
 function cerrarExpediente() {
+  // Lo que esté a medias se manda antes de que la ficha desaparezca. Si no
+  // hubiera señal, la copia local sigue ahí y se ofrece al volver a abrirla.
+  if (expAuto && expAuto.hayPendiente()) expAuto.ahora();
+  if (expAuto) { expAuto.soltar(); expAuto = null; }
   vent().classList.add('oculto');
   document.body.style.overflow = '';
   expAbierto = null;
@@ -566,6 +572,55 @@ function pintarExpediente(d) {
       <p class="ayuda">Solo para verlos. Subir y borrar documentos lo hace él desde su portal: así el expediente sigue siendo suyo y queda claro quién entregó qué.</p>
       <div class="exp-docs">${documentos}</div>
     </section>`;
+}
+
+/* Aquí se captura el expediente de alguien más: alguien de oficina teclea a
+   mano lo que el trabajador no subió. Es media pantalla de datos y hasta ahora
+   solo se guardaba apretando el botón. Una pestaña cerrada, una sesión vencida
+   o un cambio de app y se perdía todo, sin que quedara rastro de que existió. */
+function engancharAutoguardado(id) {
+  if (expAuto) expAuto.soltar();
+  expAuto = Autoguardado({
+    llave: 'roster101:expediente:' + id,
+    ruta: '/api/admin/trabajadores/' + id,
+    metodo: 'PUT',
+    fechaServidor: () => (expAbierto && expAbierto.trabajador && expAbierto.trabajador.actualizado_en) || '',
+    marca: (texto, clase) => {
+      const p = $('#exp-aviso-guardado');
+      if (p) p.innerHTML = `<span class="marca-guardado ${clase || ''}">${esc(texto)}</span>`;
+    },
+    recolectar: () => {
+      const datos = { __parcial: true };
+      for (const el of $('#exp-cuerpo').querySelectorAll('[data-c]')) datos[el.dataset.c] = el.value;
+      return datos;
+    },
+    enviar: async (datos) => {
+      const r = await api('/api/admin/trabajadores/' + id, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos),
+      });
+      // Solo se refresca el encabezado y el estado. Volver a pintar la ficha
+      // entera mientras alguien escribe le borraría el cursor de debajo de las
+      // manos: eso se deja para cuando aprieta el botón a propósito.
+      expAbierto = { ...expAbierto, trabajador: r.trabajador, faltan_campos: r.faltan_campos, faltantes: r.faltantes };
+      return true;
+    },
+  });
+  expAuto.vigilar($('#exp-cuerpo'));
+
+  const rescatados = expAuto.recuperar((datos) => {
+    let n = 0;
+    for (const el of $('#exp-cuerpo').querySelectorAll('[data-c]')) {
+      const v = datos[el.dataset.c];
+      if (v == null || v === '' || v === el.value) continue;
+      el.value = v; n++;
+    }
+    return n;
+  });
+  if (rescatados) {
+    $('#exp-aviso-guardado').innerHTML =
+      `<span class="marca-guardado trabajando">Recuperamos ${rescatados} dato${rescatados === 1 ? '' : 's'} que se habían capturado y no alcanzaron a guardarse.</span>`;
+    expAuto.ahora();
+  }
 }
 
 async function guardarExpediente() {
