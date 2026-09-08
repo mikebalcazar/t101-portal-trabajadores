@@ -17,8 +17,6 @@ const OBLIGATORIOS = ['nombre', 'razon_social', 'rfc', 'telefono', 'domicilio',
 let estado = { empresa: null, documentos: [], faltantes: [] };
 let config = null;
 let cambiosPendientes = false;
-let temporizadorGuardado = null;
-let guardandoAvance = false;
 let avisoTemporizador = null;
 let marcaTemporizador = null;
 
@@ -103,6 +101,28 @@ async function abrirPanel() {
   pintarDocumentos();
   pintarNota();
   actualizarProgreso();
+  recuperarLoNoGuardado();
+}
+
+/* Si la vez pasada se escribió algo y no alcanzó a subir -- se fue la señal, se
+   cerró la pestaña, venció la sesión -- está en el aparato. Se pone en los
+   campos y se manda, y se avisa: que se vea que no se perdió. */
+async function recuperarLoNoGuardado() {
+  const n = auto.recuperar((datos) => {
+    let cambios = 0;
+    for (const c of CAMPOS) {
+      const el = $(`#f-${c}`);
+      const v = datos[c];
+      if (!el || v == null || v === '' || v === (estado.empresa[c] || '')) continue;
+      el.value = v; cambios++;
+    }
+    return cambios;
+  });
+  if (!n) return;
+  cambiosPendientes = true;
+  actualizarProgreso();
+  await guardarAvance();
+  aviso(`Recuperamos <b>${n} dato${n === 1 ? '' : 's'}</b> que habían escrito y no alcanzaron a guardarse. Ya quedaron.`, 'bien');
 }
 
 function llenarFormulario() {
@@ -297,11 +317,33 @@ function marcaGuardado(texto, clase = '') {
   if (!clase) marcaTemporizador = setTimeout(() => { p.innerHTML = ''; }, 5000);
 }
 
+/* El temporizador estaba aquí a mano y solo cubría el caso fácil: que dejen de
+   escribir. Faltaba lo demás -- copia en el aparato, envío al cerrar con
+   keepalive, reintento al volver la señal -- que es justo lo que salva los
+   datos cuando la conexión falla. Ahora lo pone la pieza compartida, la misma
+   que usa el portal del trabajador. */
+const auto = Autoguardado({
+  llave: 'roster101:central:' + (location.host || ''),
+  ruta: '/api/yo',
+  metodo: 'PUT',
+  fechaServidor: () => (estado.empresa && estado.empresa.actualizado_en) || '',
+  marca: marcaGuardado,
+  recolectar,
+  enviar: async (datos) => {
+    datos.__parcial = true;
+    const r = await api('/api/yo', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos),
+    });
+    estado.empresa = r.empresa; estado.faltantes = r.faltantes;
+    pintarErrores({});
+    actualizarProgreso();
+    return true;
+  },
+});
+
 function programarGuardado() {
   cambiosPendientes = true;
-  marcaGuardado('Escribiendo…', 'trabajando');
-  clearTimeout(temporizadorGuardado);
-  temporizadorGuardado = setTimeout(guardarAvance, 1500);
+  auto.programar();
 }
 
 async function guardar(parcial) {
@@ -324,29 +366,18 @@ async function guardar(parcial) {
 }
 
 async function guardarAvance() {
-  if (guardandoAvance || !cambiosPendientes) return;
-  guardandoAvance = true;
-  clearTimeout(temporizadorGuardado);
-  marcaGuardado('Guardando…', 'trabajando');
-  const ok = await guardar(true);
-  guardandoAvance = false;
-  if (ok) {
-    cambiosPendientes = false;
-    const hora = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
-    marcaGuardado(`✓ Guardado a las ${hora}`);
-  } else {
-    marcaGuardado('No se pudo guardar. Revisen su internet.', 'trabajando');
-  }
+  if (cambiosPendientes) auto.marcarPendiente();
+  const quedo = await auto.ahora();
+  if (quedo) cambiosPendientes = false;
+  return quedo;
 }
 
 $$('[data-c]').forEach((el) => {
-  el.addEventListener('input', () => { actualizarProgreso(); programarGuardado(); });
-  el.addEventListener('blur', () => { if (cambiosPendientes) guardarAvance(); });
+  el.addEventListener('input', actualizarProgreso);
+  el.addEventListener('change', actualizarProgreso);
 });
-
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden' && cambiosPendientes) guardarAvance();
-});
+// input, change, blur, salida con keepalive y reintento: todo lo pone la pieza.
+auto.vigilar(document);
 
 $('#btn-avance').addEventListener('click', async () => {
   const b = $('#btn-avance'); ocupado(b, true);
@@ -358,7 +389,6 @@ $('#btn-avance').addEventListener('click', async () => {
 
 $('#btn-terminar').addEventListener('click', async () => {
   const b = $('#btn-terminar'); ocupado(b, true);
-  clearTimeout(temporizadorGuardado);
   const ok = await guardar(false);
   if (ok) {
     cambiosPendientes = false;
