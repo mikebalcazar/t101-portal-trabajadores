@@ -1,5 +1,21 @@
 /* Portal de Trabajadores — Taller 101 */
-@import url('https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&display=swap');
+/* Tipografia de la suite 101 -- claude/tipografia-cifras-suite101.md, 8-sep-2026.
+   Las cifras (medidas, cantidades, precios, fechas) van en Fira Sans, que las
+   dibuja alineadas y del mismo alto: se leen de un golpe. El texto sigue en
+   Raleway y la marca en Sansation. "Cifras" va PRIMERO en la pila y solo cubre
+   digitos y signos de medida por unicode-range, asi que ningun marcado cambia:
+   los numeros caen en Fira solos. Las fuentes viajan dentro de la app; nada se
+   pide a Google. El subconjunto lleva la caracteristica tnum, sin la cual
+   font-variant-numeric:tabular-nums no hace nada -- en silencio. */
+@font-face{font-family:"Cifras";src:url("fonts/fira-cifras-400.woff2") format("woff2");font-weight:400 500;font-display:swap;unicode-range:U+0030-0039,U+00B0,U+00B1,U+00D7,U+0025}
+@font-face{font-family:"Cifras";src:url("fonts/fira-cifras-600.woff2") format("woff2");font-weight:600 900;font-display:swap;unicode-range:U+0030-0039,U+00B0,U+00B1,U+00D7,U+0025}
+@font-face{font-family:"Raleway";src:url("fonts/raleway-400.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Raleway";src:url("fonts/raleway-500.woff2") format("woff2");font-weight:500;font-display:swap}
+@font-face{font-family:"Raleway";src:url("fonts/raleway-600.woff2") format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:"Raleway";src:url("fonts/raleway-700.woff2") format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:"Raleway";src:url("fonts/raleway-800.woff2") format("woff2");font-weight:800;font-display:swap}
+@font-face{font-family:"Sansation";src:url("fonts/sansation-700.woff2") format("woff2");font-weight:700;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Sansation";src:url("fonts/sansation-700-ext.woff2") format("woff2");font-weight:700;font-display:swap;unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
 
 :root{
   --marca:#0381c2;   /* el azul oficial de taller101: la marca va siempre en este */
@@ -18,7 +34,8 @@
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{
-  font-family:'Raleway',system-ui,-apple-system,'Segoe UI',sans-serif;
+  font-family:'Cifras','Raleway',system-ui,-apple-system,'Segoe UI',sans-serif;
+  font-variant-numeric:lining-nums;
   background:var(--papel); color:var(--tinta);
   font-size:16px; line-height:1.5;
   -webkit-text-size-adjust:100%;
@@ -32,7 +49,7 @@ a{color:var(--marca)}
   position:sticky; top:0; z-index:40;
   box-shadow:0 2px 10px rgba(18,39,51,.12);
 }
-.barra .logo{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.5px;font-size:18px}
+.barra .logo{display:flex;align-items:center;gap:10px;font-family:'Sansation','Raleway',sans-serif;font-weight:700;letter-spacing:.5px;font-size:18px}
 /* La marca lleva el aro, y el aro se come la altura: a 26 px la palabra se
    quedaba en 7 px y no se leía. A 40 la palabra pasa de 10, y la barra no
    crece porque el padding baja lo que la marca sube. */
@@ -220,7 +237,7 @@ table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:900px}
 th{background:#f0f5f9;text-align:left;padding:11px 12px;font-weight:700;color:var(--marca-sombra);white-space:nowrap;border-bottom:1.5px solid var(--linea)}
 td{padding:10px 12px;border-bottom:1px solid #eef2f5;vertical-align:middle}
 tbody tr:hover{background:#f8fbfd}
-.mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.mono{font-variant-numeric:tabular-nums;font-family:'Cifras','Raleway',ui-monospace,monospace;font-size:12.5px}
 
 .cargando{display:inline-block;width:15px;height:15px;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:giro .7s linear infinite}
 @keyframes giro{to{transform:rotate(360deg)}}
