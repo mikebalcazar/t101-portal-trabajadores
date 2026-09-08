@@ -18,6 +18,10 @@ name: Publicar portal
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'claude/**'
+      - 'BITACORA.md'
+      - 'README.md'
   workflow_dispatch:
 
 concurrency:

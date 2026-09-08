@@ -95,6 +95,11 @@ Los valores están también en `llaves.env`, que nunca se sube al repositorio.
 antes. Firma las sesiones, así que quien tuviera una sesión abierta tiene que volver
 a entrar con su correo. Molesto una vez, nada más.
 
+**Un chat a la vez.** Antes de trabajar, el chat escribe `claude/EN-CURSO.md`
+(qué hace, desde cuándo, qué chat) y lo borra al terminar. Si otro chat lo
+encuentra con menos de dos horas, se detiene y avisa. Cambios solo a `claude/`,
+`BITACORA.md` o `README.md` no publican nada.
+
 ## Verificado en producción el 2026-09-02
 
 - Corrida de GitHub Actions en verde, 56 segundos.

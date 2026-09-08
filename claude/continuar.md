@@ -194,8 +194,23 @@ Gotchas de este entorno:
    https://api.github.com/repos/mikebalcazar/t101-portal-trabajadores/actions/runs?per_page=1`.
    No hace falta la computadora de Mike ni que él dé clic a nada.
    Si el repo sí viene conectado, igual: *"lee `claude/continuar.md` y `BITACORA.md`"*.
-2. Antes de cualquier cambio, `git log --oneline -5` y el último run de
+2. **Semáforo — un chat a la vez por repositorio.** Después de clonar, mira si
+   existe `claude/EN-CURSO.md`. Si existe y tiene menos de 2 horas, **otro chat
+   está trabajando aquí**: no toques nada, dile a Mike qué dice el archivo (tarea,
+   hora, chat) y para. Si no existe o ya venció: escríbelo tú con el formato de
+   abajo, empújalo a `main` de inmediato (el Action lo ignora: `paths-ignore`),
+   trabaja, y bórralo en el mismo commit con el que termines la tarea. Si la tarea
+   se alarga, vuelve a escribir la hora. El 8-sep dos chats hicieron lo mismo al
+   mismo tiempo; esto lo evita.
+
+   ```
+   # EN CURSO
+   chat:    roster101                (título del chat en Claude)
+   tarea:   autoguardado y tipografía
+   desde:   2026-09-08 05:02 UTC     (date -u)
+   ```
+3. Antes de cualquier cambio, `git log --oneline -5` y el último run de
    `desplegar.yml`: si no está verde, eso va primero.
-3. Un cambio = probarlo local → bitácora → versión → commit → push a `main` →
+4. Un cambio = probarlo local → bitácora → versión → commit → push a `main` →
    leer el run → contarle a Mike qué se midió, con números, y qué no se pudo
    verificar.
