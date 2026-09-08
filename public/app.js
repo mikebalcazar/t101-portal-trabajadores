@@ -31,8 +31,36 @@ async function api(ruta, opciones = {}) {
   const r = await fetch(ruta, { credentials:'same-origin', ...opciones });
   let datos = {};
   try { datos = await r.json(); } catch {}
-  if (!r.ok) throw Object.assign(new Error(datos.error || 'Algo salió mal'), { estado:r.status, datos });
+  if (!r.ok) {
+    const esArranque = ruta === '/api/yo' && !opciones.method;
+    if (r.status === 401 && !esArranque && estado.trabajador) sesionVencida();
+    throw Object.assign(new Error(datos.error || 'Algo salió mal'), { estado:r.status, datos });
+  }
   return datos;
+}
+
+/* La sesión dura 12 horas. Quien deja el portal abierto y vuelve al día
+   siguiente sigue viendo su formulario, pero el servidor ya no lo reconoce:
+   cada guardado y cada documento fallaban con "revisa tu internet", que es
+   mentira, y lo escrito se perdía. Ahora se dice claro, se guarda lo escrito
+   en el teléfono y se le regresa a la pantalla de entrada con su correo puesto.
+   Al volver a entrar, lo escrito se recupera solo (ver respaldoLocal). */
+let avisandoVencida = false;
+function sesionVencida() {
+  if (avisandoVencida) return;
+  avisandoVencida = true;
+  respaldoLocal();
+  aviso('Tu sesión venció, pero <b>no perdiste nada</b>: tus documentos ya están guardados y lo que escribiste se recupera al entrar de nuevo. '
+    + '<button type="button" class="btn primario" id="btn-reentrar" style="margin-top:10px">Volver a entrar</button>', 'mal', true);
+  const b = $('#btn-reentrar');
+  if (b) b.onclick = () => {
+    const email = estado.trabajador && estado.trabajador.email;
+    $('#panel').classList.add('oculto'); $('#btn-salir').classList.add('oculto');
+    $('#acceso').classList.remove('oculto');
+    if (email) $('#acc-email').value = email;
+    $('#btn-codigo').click();
+    avisandoVencida = false;
+  };
 }
 
 let avisoTemporizador = null;
@@ -111,6 +139,7 @@ $('#btn-otro-correo').addEventListener('click', () => {
 });
 
 $('#btn-salir').addEventListener('click', async () => {
+  if (cambiosPendientes) await guardarAvance();
   await api('/api/salir', { method:'POST' }).catch(()=>{});
   location.reload();
 });
@@ -266,6 +295,7 @@ document.addEventListener('click', (e) => {
 async function abrirPanel() {
   const datos = await api('/api/yo');
   estado = datos;
+  avisandoVencida = false;
   if (!datos.aviso) { await mostrarAviso(false); return; }
   $('#acceso').classList.add('oculto');
   $('#aviso').classList.add('oculto');
@@ -277,6 +307,43 @@ async function abrirPanel() {
   pintarFoto();
   actualizarProgreso();
   window.scrollTo(0,0);
+  await recuperarRespaldo();
+}
+
+/* ─────────── respaldo en el teléfono ───────────
+   Además de guardar en el servidor, cada tecla deja copia en localStorage,
+   por correo. Sirve para lo que el servidor no alcanza: se fue la señal, la
+   sesión venció, cerró la app a media palabra. Al volver a abrir el panel, si
+   la copia es más nueva que lo que tiene el servidor y dice algo distinto, se
+   pone en los campos y se guarda. */
+const LLAVE_RESPALDO = () => 'roster101:respaldo:' + ((estado.trabajador && estado.trabajador.email) || '');
+
+function respaldoLocal() {
+  try {
+    if (!estado.trabajador) return;
+    localStorage.setItem(LLAVE_RESPALDO(), JSON.stringify({ hora: new Date().toISOString(), datos: recolectar() }));
+  } catch { /* sin espacio o modo privado: no pasa nada, el servidor sigue guardando */ }
+}
+function borrarRespaldo() { try { localStorage.removeItem(LLAVE_RESPALDO()); } catch {} }
+
+async function recuperarRespaldo() {
+  let r = null;
+  try { r = JSON.parse(localStorage.getItem(LLAVE_RESPALDO()) || 'null'); } catch {}
+  if (!r || !r.datos) return;
+  const servidor = estado.trabajador.actualizado_en || '';
+  if (r.hora <= servidor) { borrarRespaldo(); return; }
+  let cambios = 0;
+  for (const c of CAMPOS) {
+    const el = $(`#f-${c}`);
+    const v = r.datos[c];
+    if (!el || v == null || v === '' || v === (estado.trabajador[c] || '')) continue;
+    el.value = v; cambios++;
+  }
+  if (!cambios) { borrarRespaldo(); return; }
+  cambiosPendientes = true;
+  actualizarProgreso(); pintarFirma();
+  await guardarAvance();
+  aviso(`Recuperamos <b>${cambios} dato${cambios === 1 ? '' : 's'}</b> que habías escrito y no alcanzaron a guardarse. Ya quedaron.`, 'bien');
 }
 
 function llenarFormulario() {
@@ -334,6 +401,8 @@ function actualizarProgreso() {
 
 $$('[data-c]').forEach((el) => {
   el.addEventListener('input', () => { actualizarProgreso(); pintarFirma(); programarGuardado(); });
+  // Los <select> y el autollenado del teléfono a veces disparan change sin input.
+  el.addEventListener('change', () => { actualizarProgreso(); pintarFirma(); programarGuardado(); });
   el.addEventListener('blur', () => { if (cambiosPendientes) guardarAvance(); });
 });
 
@@ -556,9 +625,12 @@ async function subir(tipo, archivo, etiqueta = '') {
     const r = await api('/api/docs', { method:'POST', body:fd });
     estado.documentos = r.documentos; estado.faltantes = r.faltantes;
     pintarDocumentos(); pintarFoto(); pintarFirma(); actualizarProgreso();
-    if (cambiosPendientes) await guardarAvance();
+    // El documento ya quedó en el servidor. Los datos escritos se guardan
+    // también, pendientes o no: así subir un papel siempre deja todo al día.
+    cambiosPendientes = true;
+    await guardarAvance();
     aviso('Listo, se guardó.', 'bien', false);
-  } catch (e) { aviso(e.message, 'mal'); }
+  } catch (e) { if (e.estado !== 401) aviso(e.message, 'mal'); }
 }
 
 async function borrarDoc(id) {
@@ -886,6 +958,7 @@ async function guardar(parcial = false) {
     }
     return true;
   } catch (e) {
+    if (e.estado === 401) return false; // ya avisó sesionVencida()
     if (e.datos && e.datos.errores) { pintarErrores(e.datos.errores); aviso('Revisa los campos marcados en rojo.', 'mal'); }
     else aviso(e.message, 'mal');
     return false;
@@ -915,6 +988,7 @@ function marcaGuardado(texto, clase = '') {
 
 function programarGuardado() {
   cambiosPendientes = true;
+  respaldoLocal();
   marcaGuardado('Escribiendo…', 'trabajando');
   clearTimeout(temporizadorGuardado);
   temporizadorGuardado = setTimeout(guardarAvance, 1500);
@@ -929,16 +1003,38 @@ async function guardarAvance() {
   guardandoAvance = false;
   if (ok) {
     cambiosPendientes = false;
+    borrarRespaldo();
     const hora = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
     marcaGuardado(`✓ Guardado a las ${hora}`);
-  } else {
-    marcaGuardado('No se pudo guardar. Revisa tu internet.', 'trabajando');
+  } else if (!avisandoVencida) {
+    marcaGuardado('Sin conexión. Lo escrito está a salvo en tu teléfono; se guarda solo cuando vuelva la señal.', 'trabajando');
   }
 }
 
+// Reintento: al volver la señal, y cada 20 s mientras haya algo sin guardar.
+window.addEventListener('online', () => { if (cambiosPendientes) guardarAvance(); });
+setInterval(() => { if (cambiosPendientes && !guardandoAvance && !avisandoVencida && navigator.onLine) guardarAvance(); }, 20000);
+
+/* Al cerrar la pestaña o mandar la app al fondo, un fetch normal se corta a
+   medias en el celular. `keepalive` deja que el navegador lo termine solo,
+   ya sin la página. Se manda directo, sin pasar por api(), porque aquí ya no
+   hay a quién avisarle nada. */
+function guardarAlSalir() {
+  if (!cambiosPendientes || !estado.trabajador) return;
+  respaldoLocal();
+  const cuerpo = recolectar(); cuerpo.__parcial = true;
+  try {
+    fetch('/api/yo', { method:'PUT', credentials:'same-origin', keepalive:true,
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify(cuerpo) })
+      .then((r) => { if (r.ok) { cambiosPendientes = false; borrarRespaldo(); } }).catch(() => {});
+  } catch {}
+}
+window.addEventListener('pagehide', guardarAlSalir);
+window.addEventListener('beforeunload', guardarAlSalir);
+
 // Si cierra la pestaña o se cambia de app en el celular, guardamos antes de irnos.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden' && cambiosPendientes) guardarAvance();
+  if (document.visibilityState === 'hidden') guardarAlSalir();
 });
 
 $('#btn-avance').addEventListener('click', async () => {
