@@ -141,21 +141,25 @@ encontró lo de las casillas, que a simple vista parecía un problema de diseño
 
 ## Pendientes
 
-1. Que un abogado revise el aviso de privacidad. Ojo: quien ya lo aceptó tiene
-   registrada la versión vieja (`2026-09-01`, la que iba sin domicilio) y el portal
-   no se lo vuelve a pedir. Si el abogado quiere que todos acepten la versión con
+Lo que solo Mike puede hacer, porque el chat no alcanza Cloudflare, Resend ni
+los secretos del repositorio:
+
+1. **Entrar al panel de la empresa y ponerle una clave nueva.** Hasta que se
+   haga, el panel lo dice en rojo hasta arriba. Después, borrar el secreto
+   `CLAVE_ADMIN` del repositorio: ya nadie lo lee.
+2. Revisar el correo: ahí llegó la clave del **panel maestro** cuando se instaló.
+3. Poner el secreto `GITHUB_TOKEN_ALTAS` (un token de GitHub con permiso de
+   Actions) para que el botón "Abrirle su portal" del panel maestro dispare el
+   alta solo. Sin él, enseña los datos para correrla a mano.
+4. Borrar en Resend la llave `t101-portal` (Full access), creada por error. La
+   buena es `t101-portal-envio`.
+5. Rotar el token de Cloudflare: se pegó en un chat.
+6. Que un abogado revise el aviso de privacidad. Ojo: quien ya lo aceptó tiene
+   registrada la versión vieja (`2026-09-01`, sin domicilio) y el portal no se lo
+   vuelve a pedir. Si el abogado quiere que todos acepten la versión con
    domicilio, hay que borrar los renglones de la tabla `consentimientos`.
-2. Borrar en Resend la llave `t101-portal` (Full access), creada por error. La buena
-   es `t101-portal-envio`.
-3. Rotar el token de Cloudflare: se pegó en un chat.
-4. **Cambiar la clave del panel.** Estuvo escrita en este archivo, dentro del
-   repositorio; ya se quitó, pero sigue en el historial de GitHub. Se cambia en el
-   secreto `CLAVE_ADMIN`, se dispara el workflow a mano y se actualiza `llaves.env`.
-   Aprovechar para poner una larga.
-5. Prueba con un trabajador de verdad antes de repartir la liga.
-6. **El formulario de datos del cliente.** Hoy el correo de alta le pide a la
-   empresa que responda con su razón social, su CSF, su domicilio y su aviso de
-   privacidad. Falta la pantalla donde los suba ella misma y que eso actualice
-   su configuración sin pasar por GitHub.
-7. **Panel de roster101.** Dar de alta desde una pantalla en vez de disparar el
-   flujo de Actions, y ver ahí todas las empresas, su uso y su estado.
+7. **Probar con un trabajador de verdad, en un teléfono de verdad**, antes de
+   repartir la liga. Sobre todo el escáner: todo lo que se midió fue sobre
+   documentos sintéticos y cámara falsa.
+
+Para seguir el desarrollo en otro chat: `claude/continuar.md`.
