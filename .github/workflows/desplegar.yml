@@ -164,3 +164,12 @@ jobs:
           set -euo pipefail
           sleep 12
           curl -fsS "${{ steps.publicar.outputs.liga }}/api/salud"
+
+  # El chat no alcanza producción; el corredor sí. Deja los números medidos
+  # como comentario del commit, que es lo único que el chat puede leer.
+  verificar:
+    needs: publicar
+    uses: ./.github/workflows/verificar.yml
+    with:
+      url: https://t101-portal.mike-929.workers.dev
+
