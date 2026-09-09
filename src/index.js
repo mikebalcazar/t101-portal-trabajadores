@@ -1226,6 +1226,25 @@ app.get('/api/admin/tabla.csv', exigeAdmin, async (c) => {
 
 app.get('/api/salud', (c) => c.json({ ok: true, servicio: 'roster101', hora: ahora() }));
 
+/* Deriva una clave de mentiras para comprobar que PBKDF2 corre con las vueltas
+   que usa el portal. Existe porque un tope del runtime tuvo la clave del panel
+   rota desde el 7-sep sin que nada se quejara: el camino del arranque compara
+   con sha256 y nunca tocaba PBKDF2, así que el despliegue salía verde igual.
+   Lo que no se ejercita, no está probado. Aquí no hay ningún secreto: la clave
+   es una constante y la sal es nueva cada vez. */
+app.get('/api/salud/cripto', async (c) => {
+  try {
+    const t0 = Date.now();
+    const sal = salNueva();
+    const hash = await derivaClave('prueba-de-vida', sal);
+    return c.json({
+      ok: hash.length > 0, vueltas: VUELTAS_CLAVE, ms: Date.now() - t0, hora: ahora(),
+    });
+  } catch (e) {
+    return c.json({ ok: false, vueltas: VUELTAS_CLAVE, error: String(e && e.message || e) }, 500);
+  }
+});
+
 // Datos del responsable: los lee el navegador para armar el aviso de privacidad.
 app.get('/api/config', (c) => c.json({
   empresa: c.env.EMPRESA || 'la empresa',
