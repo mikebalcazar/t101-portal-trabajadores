@@ -168,6 +168,12 @@ jobs:
           set -euo pipefail
           sleep 12
           curl -fsS "${{ steps.publicar.outputs.liga }}/api/salud"
+          echo
+          # Que PBKDF2 corra de verdad con las vueltas de hoy. El tope del
+          # runtime tuvo la clave del panel rota desde el 7-sep y esto salia
+          # verde igual, porque nada la ejercitaba. El central no lo necesita:
+          # no deriva ninguna clave.
+          curl -fsS "${{ steps.publicar.outputs.liga }}/api/salud/cripto"
 
   # El chat no alcanza producción; el corredor sí. Deja los números medidos
   # como comentario del commit, que es lo único que el chat puede leer.

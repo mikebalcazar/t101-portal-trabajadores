@@ -109,7 +109,14 @@ export function csvCampo(v) {
  * midiendo el tiempo.
  */
 
-export const VUELTAS_CLAVE = 120000;
+// 100,000 es el techo: el runtime de Workers no acepta más vueltas en PBKDF2 y
+// deriveBits truena. Estuvo en 120,000 desde el 7-sep y nadie lo vio, porque la
+// clave del arranque se compara con sha256 y ese camino no toca PBKDF2: se
+// entraba bien, y solo habría fallado al CAMBIAR la clave, que es cuando se
+// deriva de verdad. Lo destapó suite101-api, que tenía el mismo valor copiado
+// de aquí y sí lo ejercía. Ver /api/salud/cripto, que ahora lo prueba en cada
+// despliegue para que no se pueda volver a esconder.
+export const VUELTAS_CLAVE = 100000;
 
 export function salNueva() {
   return b64url(crypto.getRandomValues(new Uint8Array(16)));
