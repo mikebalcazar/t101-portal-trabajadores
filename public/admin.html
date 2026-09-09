@@ -48,6 +48,13 @@
       <small class="pista">No puede ser una que ya se haya usado en los últimos 6 meses.</small>
       <div class="error" data-e="nueva"></div>
     </div>
+    <div class="campo">
+      <label for="res-nueva2">Escríbela otra vez</label>
+      <input id="res-nueva2" type="password" autocomplete="off" data-sin-pegar placeholder="La misma, tecleada">
+      <small class="pista">Aquí no se puede pegar. Es la pantalla donde un error de dedo cuesta más caro: se llega a ella sin poder entrar, así que si la clave nueva queda mal escrita, hay que volver a pedir otro código al correo.</small>
+      <div class="error" data-e="nueva2"></div>
+    </div>
+    <p class="pista"><button type="button" id="btn-ver-res" class="enlace">Ver lo que escribí</button></p>
     <button id="btn-restaurar" class="btn primario bloque">Poner la clave nueva</button>
     <p class="pista centrado" style="margin:12px 0 0"><button type="button" id="btn-cancelar-res" class="enlace">Regresar</button></p>
   </div>
@@ -149,7 +156,14 @@
         <small class="pista">No puede ser una que ya se haya usado en los últimos 6 meses.</small>
         <div class="error" data-e="nueva"></div>
       </div>
+      <div class="campo">
+        <label for="cl-nueva2">Escríbela otra vez</label>
+        <input id="cl-nueva2" type="password" autocomplete="off" data-sin-pegar placeholder="La misma, tecleada">
+        <small class="pista">Aquí no se puede pegar, a propósito: si la primera trae un error de dedo, la segunda no lo repite igual y el portal te avisa antes de guardar. Una clave mal escrita deja fuera del panel.</small>
+        <div class="error" data-e="nueva2"></div>
+      </div>
     </div>
+    <p class="pista"><button type="button" id="btn-ver-clave" class="enlace">Ver lo que escribí</button></p>
     <button id="btn-cambiar-clave" class="btn primario" style="margin-top:6px">Cambiar la clave</button>
   </details>
 
