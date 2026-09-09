@@ -363,17 +363,61 @@ async function estadoClave() {
   } catch { /* si no se alcanza, la tarjeta se queda como está */ }
 }
 
+/* ─────────── la clave se escribe dos veces ───────────
+   Una clave mal tecleada no se nota: la pantalla enseña puntitos, el servidor
+   la guarda tal cual llegó, y el error aparece al siguiente intento de entrar
+   -- cuando ya no se puede. Por eso se pide dos veces, y en la segunda no se
+   deja pegar: copiar y pegar dos veces el mismo error de dedo no comprueba
+   nada. Tecleada de nuevo, un dedo equivocado casi nunca cae en el mismo sitio.
+
+   A cambio de la molestia va el botón de ver lo escrito: si se usa un gestor
+   de contraseñas y la clave es larga, se pega en el primer campo, se teclea en
+   el segundo, y si no cuadran se puede mirar por qué en vez de adivinar. */
+document.querySelectorAll('[data-sin-pegar]').forEach((el) => {
+  const no = (e) => {
+    e.preventDefault();
+    const caja = el.closest('.campo')?.querySelector('.error');
+    if (caja) caja.textContent = 'Aquí no se pega: escríbela para comprobar que no trae un error de dedo.';
+  };
+  el.addEventListener('paste', no);
+  el.addEventListener('drop', no);
+});
+
+function ojo(boton, ...campos) {
+  const b = $(boton);
+  if (!b) return;
+  b.addEventListener('click', () => {
+    const oculto = $(campos[0]).type === 'password';
+    campos.forEach((c) => { const el = $(c); if (el) el.type = oculto ? 'text' : 'password'; });
+    b.textContent = oculto ? 'Ocultar lo que escribí' : 'Ver lo que escribí';
+  });
+}
+ojo('#btn-ver-clave', '#cl-nueva', '#cl-nueva2');
+ojo('#btn-ver-res', '#res-nueva', '#res-nueva2');
+
+// Las dos tienen que coincidir antes de mandar nada. Se comprueba aquí y no en
+// el servidor a propósito: la segunda copia nunca sale de esta pantalla.
+function clavesCuadran(caja, uno, dos) {
+  const a = $(uno).value, b = $(dos).value;
+  if (a && a === b) return true;
+  const err = document.querySelector(`${caja} [data-e="nueva2"]`);
+  if (err) err.textContent = b ? 'No coinciden. Revisa las dos.' : 'Escribe la clave otra vez para confirmarla.';
+  $(dos).focus();
+  return false;
+}
+
 $('#btn-cambiar-clave').addEventListener('click', async () => {
   const caja = $('#caja-clave');
   limpiaErrores(caja);
   $('#aviso-clave').innerHTML = '';
+  if (!clavesCuadran('#caja-clave', '#cl-nueva', '#cl-nueva2')) return;
   const b = $('#btn-cambiar-clave'); b.disabled = true; b.textContent = 'Cambiando…';
   try {
     const r = await api('/api/admin/clave', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ actual: $('#cl-actual').value, nueva: $('#cl-nueva').value }),
     });
-    $('#cl-actual').value = ''; $('#cl-nueva').value = '';
+    $('#cl-actual').value = ''; $('#cl-nueva').value = ''; $('#cl-nueva2').value = '';
     $('#aviso-clave').innerHTML = `<div class="aviso bien">${esc(r.mensaje)}</div>`;
     await estadoClave();
   } catch (e) {
@@ -399,13 +443,14 @@ $('#btn-olvide').addEventListener('click', async () => {
 
 $('#btn-cancelar-res').addEventListener('click', () => {
   $('#caja-restaurar').classList.add('oculto');
-  $('#res-codigo').value = ''; $('#res-nueva').value = '';
+  $('#res-codigo').value = ''; $('#res-nueva').value = ''; $('#res-nueva2').value = '';
 });
 
 $('#btn-restaurar').addEventListener('click', async () => {
   const caja = $('#caja-restaurar');
   limpiaErrores(caja);
   $('#aviso-restaurar').innerHTML = '';
+  if (!clavesCuadran('#caja-restaurar', '#res-nueva', '#res-nueva2')) return;
   const b = $('#btn-restaurar'); b.disabled = true; b.textContent = 'Guardando…';
   try {
     const r = await api('/api/admin/clave/restaurar', {
