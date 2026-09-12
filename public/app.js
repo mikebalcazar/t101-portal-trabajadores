@@ -136,6 +136,10 @@ $('#btn-otro-correo').addEventListener('click', () => {
   $('#paso-codigo').classList.add('oculto');
   $('#paso-correo').classList.remove('oculto');
   $('#acc-codigo').value = '';
+  // Los avisos en rojo de la vuelta anterior se borran: si no, al volver a
+  // pedir el código reaparece "El código no es correcto" sin haber escrito nada.
+  $('#cod-error').textContent = '';
+  $('#acc-error').textContent = '';
 });
 
 $('#btn-salir').addEventListener('click', async () => {
