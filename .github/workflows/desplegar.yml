@@ -22,6 +22,9 @@ on:
       - 'claude/**'
       - 'BITACORA.md'
       - 'README.md'
+      # Se agregó el 12-sep en los once repositorios y se colaba por esta
+      # lista, que nombra archivos uno por uno en vez de usar `**.md`.
+      - 'CLAUDE.md'
   workflow_dispatch:
 
 concurrency:
