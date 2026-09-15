@@ -766,3 +766,14 @@ details[open] > .titulo-plegable::before{content:'▾ '}
   .esc-etiqueta{font-size:12px; max-width:112px}
   .esc-pista{bottom:auto; top:8px; left:auto; right:140px; max-width:40%}
 }
+
+/* ── cuentas del panel (0.11) ── */
+.barra .quien{font-size:13px;color:rgba(255,255,255,.9);margin-right:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
+.cuentas .cuenta{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--linea)}
+.cuentas .cuenta:first-child{border-top:none}
+.cuentas .cuenta .datos{flex:1;min-width:200px}
+.cuentas .cuenta select{width:auto;font-size:14px;padding:8px 10px}
+.cuentas .cuenta.inactiva .datos{opacity:.55}
+.etiqueta.nivel{background:#eaf4fa;color:var(--marca-sombra)}
+.etiqueta.inactiva{background:#eee;color:#666}
+.etiqueta.provisional{background:#fdf1e3;color:var(--canto)}

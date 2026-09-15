@@ -115,3 +115,27 @@ CREATE TABLE IF NOT EXISTS codigos_admin (
   intentos   INTEGER NOT NULL DEFAULT 0,
   enviado_en INTEGER NOT NULL
 );
+
+-- Las cuentas del panel de la empresa. Antes había una sola clave para todos
+-- (claves_admin); ahora cada persona entra con su correo y su contraseña, y la
+-- bitácora dice quién exportó qué. La contraseña se guarda como en claves_admin:
+-- derivada con PBKDF2, con su sal y sus vueltas, nunca en claro.
+--   nivel         'dueno' maneja las cuentas; 'admin' hace todo lo demás;
+--                 'consulta' solo ve expedientes y saca fichas.
+--   activo        0 = se le quitó el acceso sin borrar su rastro en la bitácora.
+--   debe_cambiar  1 = alguien más le puso la contraseña (alta o reinicio): la
+--                 tiene que cambiar al entrar, para que nadie más la sepa.
+CREATE TABLE IF NOT EXISTS administradores (
+  id            TEXT PRIMARY KEY,
+  email         TEXT NOT NULL UNIQUE,   -- en minúsculas
+  nombre        TEXT NOT NULL DEFAULT '',
+  hash          TEXT NOT NULL,
+  sal           TEXT NOT NULL,
+  vueltas       INTEGER NOT NULL,
+  nivel         TEXT NOT NULL DEFAULT 'consulta',   -- dueno | admin | consulta
+  activo        INTEGER NOT NULL DEFAULT 1,
+  debe_cambiar  INTEGER NOT NULL DEFAULT 0,
+  creado_en     TEXT NOT NULL,
+  creado_por    TEXT NOT NULL DEFAULT '',
+  ultimo_acceso TEXT
+);

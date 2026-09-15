@@ -25,28 +25,122 @@ async function api(ruta, op = {}) {
   return d;
 }
 
+/* ─────────── quién soy ───────────
+   Cada persona entra con su correo y su contraseña (0.11). `yo` es lo que el
+   servidor dice de la sesión: nombre, nivel y qué puede hacer. La pantalla se
+   acomoda a eso: a quien no puede exportar no se le pinta el botón. */
+let yo = null;
+const puedo = (que) => !!(yo && yo.permisos && yo.permisos[que]);
+const NIVEL_DICE = { dueno: 'Dueño', admin: 'Administración', consulta: 'Consulta' };
+const json = (cuerpo) => ({ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(cuerpo) });
+
 $('#btn-entrar').addEventListener('click', async () => {
-  const clave = $('#clave').value;
-  $('#acc-error').textContent = '';
+  const caja = $('#caja-cuenta');
+  limpiaErrores(caja);
+  $('#aviso-acceso').innerHTML = '';
   const b = $('#btn-entrar'); b.disabled = true;
   try {
-    await api('/api/admin/entrar', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ clave }) });
+    await api('/api/admin/entrar', json({ email: $('#acc-email').value, clave: $('#acc-clave').value }));
+    $('#acc-clave').value = '';
     await abrir();
-  } catch (e) { $('#acc-error').textContent = e.message; }
+  } catch (e) {
+    $('#acc-error').textContent = e.message;
+    marcaErrores(caja, e.datos?.errores);
+  } finally { b.disabled = false; }
+});
+$('#acc-clave').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btn-entrar').click(); });
+$('#acc-email').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#acc-clave').focus(); });
+
+// El arranque: la clave compartida abre sólo para crear la primera cuenta.
+$('#btn-arranque').addEventListener('click', async () => {
+  $('#arranque-error').textContent = '';
+  const b = $('#btn-arranque'); b.disabled = true;
+  try {
+    const r = await api('/api/admin/entrar', json({ clave: $('#clave-arranque').value }));
+    $('#clave-arranque').value = '';
+    if (r.arranque) {
+      $('#caja-arranque').classList.add('oculto');
+      $('#caja-primera').classList.remove('oculto');
+      $('#pri-nombre').focus();
+    } else {
+      await abrir();
+    }
+  } catch (e) { $('#arranque-error').textContent = e.message; }
   finally { b.disabled = false; }
 });
-$('#clave').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btn-entrar').click(); });
+$('#clave-arranque').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btn-arranque').click(); });
 
-$('#btn-salir').addEventListener('click', async () => { await api('/api/admin/salir', { method:'POST' }); location.reload(); });
+$('#btn-primera').addEventListener('click', async () => {
+  const caja = $('#caja-primera');
+  limpiaErrores(caja);
+  $('#aviso-primera').innerHTML = '';
+  if (!clavesCuadran('#caja-primera', '#pri-clave', '#pri-clave2')) return;
+  const b = $('#btn-primera'); b.disabled = true; b.textContent = 'Creando…';
+  try {
+    await api('/api/admin/cuentas/primera', json({
+      nombre: $('#pri-nombre').value, email: $('#pri-email').value, clave: $('#pri-clave').value,
+    }));
+    $('#pri-clave').value = ''; $('#pri-clave2').value = '';
+    await abrir();
+  } catch (e) {
+    $('#aviso-primera').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
+    marcaErrores(caja, e.datos?.errores);
+  } finally { b.disabled = false; b.textContent = 'Crear mi cuenta'; }
+});
+
+// El cambio obligado: alguien más puso esta contraseña y hay que cambiarla
+// antes de que el panel se abra.
+$('#btn-obligado').addEventListener('click', async () => {
+  const caja = $('#caja-obligado');
+  limpiaErrores(caja);
+  $('#aviso-obligado').innerHTML = '';
+  if (!clavesCuadran('#caja-obligado', '#ob-nueva', '#ob-nueva2')) return;
+  const b = $('#btn-obligado'); b.disabled = true; b.textContent = 'Cambiando…';
+  try {
+    await api('/api/admin/clave', json({ actual: $('#ob-actual').value, nueva: $('#ob-nueva').value }));
+    $('#ob-actual').value = ''; $('#ob-nueva').value = ''; $('#ob-nueva2').value = '';
+    $('#caja-obligado').classList.add('oculto');
+    await abrir();
+  } catch (e) {
+    $('#aviso-obligado').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
+    marcaErrores(caja, e.datos?.errores);
+  } finally { b.disabled = false; b.textContent = 'Cambiar mi contraseña'; }
+});
+
+async function salir() { await api('/api/admin/salir', { method:'POST' }); location.reload(); }
+$('#btn-salir').addEventListener('click', salir);
+$('#btn-salir-ob').addEventListener('click', salir);
 $('#btn-refrescar').addEventListener('click', cargar);
 $('#buscar').addEventListener('input', pintar);
 
 async function abrir() {
+  yo = await api('/api/admin/yo');      // si no hay sesión, esto lanza 401 y no abrimos nada
+  $('#btn-salir').classList.remove('oculto');
+  if (yo.debe_cambiar) {
+    // Se entró con una contraseña que puso alguien más: antes de ver nada, una propia.
+    for (const c of ['#caja-cuenta', '#caja-arranque', '#caja-primera', '#caja-restaurar']) $(c).classList.add('oculto');
+    $('#caja-obligado').classList.remove('oculto');
+    $('#ob-actual').focus();
+    return;
+  }
+  aplicaPermisos();
   ponVista(vista, false);   // solo acomoda; pintar viene con los datos
-  await cargar();                       // si no hay sesión, esto lanza 401 y no abrimos nada
+  await cargar();
   $('#acceso').classList.add('oculto');
   $('#panel').classList.remove('oculto');
-  $('#btn-salir').classList.remove('oculto');
+}
+
+// Lo que la cuenta no puede hacer, no se pinta. El servidor lo rechaza de todos
+// modos, pero un botón que siempre falla es una pantalla mal hecha.
+function aplicaPermisos() {
+  const q = $('#quien');
+  q.textContent = `${yo.nombre || yo.email} · ${NIVEL_DICE[yo.nivel] || yo.nivel}`;
+  q.title = yo.email;
+  q.classList.remove('oculto');
+  document.querySelectorAll('.solo-exportar').forEach((el) => el.classList.toggle('oculto', !puedo('exportar')));
+  document.querySelectorAll('.solo-cuentas').forEach((el) => el.classList.toggle('oculto', !puedo('cuentas')));
+  $('#exp-guardar').classList.toggle('oculto', !puedo('capturar'));
+  document.body.classList.toggle('sin-baja', !puedo('baja'));
 }
 
 async function cargar() {
@@ -57,7 +151,7 @@ async function cargar() {
   pintar();
   cargarDuplicados();
   cargarPapelera();
-  estadoClave();
+  cargarCuentas();
 }
 
 // El portal ya no deja guardar un dato repetido, pero esto muestra lo que haya
@@ -119,7 +213,7 @@ function pintar() {
       <td>${esc(t.emerg_nombre)}${t.emerg_parentesco ? ` <span style="color:var(--tenue)">(${esc(t.emerg_parentesco)})</span>` : ''}<br><span class="mono" style="font-size:12px">${esc(t.emerg_telefono)}</span></td>
       <td class="celda-docs">${chips || '<span style="color:var(--tenue)">—</span>'}${falta ? `<details class="faltan"><summary>Faltan ${falta}</summary>${detalleFalta}</details>` : ''}</td>
       <td><span class="etiqueta ${t.estado === 'completo' ? 'completo' : 'borrador'}">${t.estado === 'completo' ? 'Completo' : 'Pendiente'}</span></td>
-      <td><button class="btn peligro chico" data-baja="${t.id}">Baja</button></td>`;
+      <td>${puedo('baja') ? `<button class="btn peligro chico" data-baja="${t.id}">Baja</button>` : ''}</td>`;
     // Doble clic en el renglón abre su expediente tal como lo ve la persona. Se
     // deja fuera la primera y la última celda: ahí viven la palomita y el botón
     // de baja, y abrir una ventana encima de un clic a esos dos estorba.
@@ -172,8 +266,8 @@ async function cargarPapelera() {
           <span style="color:var(--tenue);font-size:12px">${esc(t.email)} · ${t.documentos} documento${t.documentos === 1 ? '' : 's'} guardado${t.documentos === 1 ? '' : 's'}</span>
         </div>
         <span style="font-size:12.5px;color:${urge ? 'var(--alerta)' : 'var(--tenue)'}">${esc(cuando)}</span>
-        <button class="btn suave chico" data-restaurar="${t.id}" data-nombre="${esc(nom)}">↩ Devolver</button>
-        <button class="btn peligro chico" data-purgar="${t.id}" data-nombre="${esc(nom)}">Borrar ya</button>
+        ${puedo('baja') ? `<button class="btn suave chico" data-restaurar="${t.id}" data-nombre="${esc(nom)}">↩ Devolver</button>
+        <button class="btn peligro chico" data-purgar="${t.id}" data-nombre="${esc(nom)}">Borrar ya</button>` : ''}
       </div>`;
     }).join('');
     caja.classList.remove('oculto');
@@ -332,7 +426,15 @@ async function pintarMarca() {
 // se vea igual que un panel que no ha entrado.
 (async () => {
   pintarMarca();
-  try { await abrir(); } catch (e) { if (e.estado !== 401) console.error('No se pudo abrir el panel:', e); }
+  try { await abrir(); return; } catch (e) { if (e.estado !== 401) console.error('No se pudo abrir el panel:', e); }
+  // Sin sesión: ¿ya hay cuentas? Si no, se entra con la clave compartida del
+  // arranque para crear la primera.
+  try {
+    const d = await api('/api/admin/estado');
+    $('#caja-cuenta').classList.toggle('oculto', !d.cuentas);
+    $('#caja-arranque').classList.toggle('oculto', d.cuentas);
+    (d.cuentas ? $('#acc-email') : $('#clave-arranque')).focus();
+  } catch (e) { console.error('No se pudo saber si el panel tiene cuentas:', e); }
 })();
 
 /* ─────────── la clave del panel ─────────── */
@@ -350,17 +452,6 @@ function marcaErrores(caja, errores = {}) {
     const e = caja.querySelector(`[data-e="${campo}"]`);
     if (e) { e.textContent = texto; e.closest('.campo')?.classList.add('falta'); }
   }
-}
-
-async function estadoClave() {
-  try {
-    const d = await api('/api/admin/clave');
-    $('#aviso-arranque').classList.toggle('oculto', !d.arranque);
-    if (d.arranque) $('#caja-clave').open = true;
-    $('#clave-estado').textContent = d.arranque
-      ? 'Todavía es la de instalación. Cámbiala.'
-      : `Se puso el ${new Date(d.desde).toLocaleDateString('es-MX', { day:'2-digit', month:'long', year:'numeric' })}. No puede repetirse una de los últimos ${d.meses} meses.`;
-  } catch { /* si no se alcanza, la tarjeta se queda como está */ }
 }
 
 /* ─────────── la clave se escribe dos veces ───────────
@@ -394,6 +485,8 @@ function ojo(boton, ...campos) {
 }
 ojo('#btn-ver-clave', '#cl-nueva', '#cl-nueva2');
 ojo('#btn-ver-res', '#res-nueva', '#res-nueva2');
+ojo('#btn-ver-pri', '#pri-clave', '#pri-clave2');
+ojo('#btn-ver-ob', '#ob-nueva', '#ob-nueva2');
 
 // Las dos tienen que coincidir antes de mandar nada. Se comprueba aquí y no en
 // el servidor a propósito: la segunda copia nunca sale de esta pantalla.
@@ -419,30 +512,40 @@ $('#btn-cambiar-clave').addEventListener('click', async () => {
     });
     $('#cl-actual').value = ''; $('#cl-nueva').value = ''; $('#cl-nueva2').value = '';
     $('#aviso-clave').innerHTML = `<div class="aviso bien">${esc(r.mensaje)}</div>`;
-    await estadoClave();
   } catch (e) {
     $('#aviso-clave').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
     marcaErrores(caja, e.datos?.errores);
-  } finally { b.disabled = false; b.textContent = 'Cambiar la clave'; }
+  } finally { b.disabled = false; b.textContent = 'Cambiar mi contraseña'; }
 });
 
 /* ── recuperar, desde la pantalla de acceso ── */
 
 $('#btn-olvide').addEventListener('click', async () => {
+  const email = $('#acc-email').value.trim();
+  limpiaErrores($('#caja-cuenta'));
+  if (!email) {
+    marcaErrores($('#caja-cuenta'), { email: 'Escribe primero el correo de tu cuenta.' });
+    $('#acc-email').focus();
+    return;
+  }
   const b = $('#btn-olvide'); b.disabled = true; b.textContent = 'Mandando el código…';
   try {
-    const r = await api('/api/admin/clave/olvide', { method:'POST' });
+    const r = await api('/api/admin/clave/olvide', json({ email }));
+    $('#caja-cuenta').classList.add('oculto');
     $('#caja-restaurar').classList.remove('oculto');
+    $('#res-email').value = email;
     $('#txt-restaurar').innerHTML =
-      `Se mandó un código a <b>${esc(r.correo)}</b>, el correo configurado de la empresa. Vence en 15 minutos.`;
+      `Si <b>${esc(email)}</b> es una cuenta de este panel, se mandó un código a <b>${esc(r.correo)}</b>, el correo configurado de la empresa. Vence en 15 minutos.`;
     $('#res-codigo').focus();
   } catch (e) {
     $('#acc-error').textContent = e.message;
-  } finally { b.disabled = false; b.textContent = 'Olvidé la clave'; }
+    marcaErrores($('#caja-cuenta'), e.datos?.errores);
+  } finally { b.disabled = false; b.textContent = 'Olvidé mi contraseña'; }
 });
 
 $('#btn-cancelar-res').addEventListener('click', () => {
   $('#caja-restaurar').classList.add('oculto');
+  $('#caja-cuenta').classList.remove('oculto');
   $('#res-codigo').value = ''; $('#res-nueva').value = ''; $('#res-nueva2').value = '';
 });
 
@@ -453,19 +556,140 @@ $('#btn-restaurar').addEventListener('click', async () => {
   if (!clavesCuadran('#caja-restaurar', '#res-nueva', '#res-nueva2')) return;
   const b = $('#btn-restaurar'); b.disabled = true; b.textContent = 'Guardando…';
   try {
-    const r = await api('/api/admin/clave/restaurar', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ codigo: $('#res-codigo').value, nueva: $('#res-nueva').value }),
-    });
+    const r = await api('/api/admin/clave/restaurar', json({
+      email: $('#res-email').value, codigo: $('#res-codigo').value, nueva: $('#res-nueva').value,
+    }));
     caja.classList.add('oculto');
-    $('#clave').value = '';
+    $('#caja-cuenta').classList.remove('oculto');
+    $('#acc-email').value = $('#res-email').value;
+    $('#acc-clave').value = '';
     $('#acc-error').textContent = '';
-    $('#aviso-acceso-ok') || $('#acceso .tarjeta').insertAdjacentHTML('afterbegin', `<div class="aviso bien" id="aviso-acceso-ok">${esc(r.mensaje)}</div>`);
-    $('#clave').focus();
+    $('#aviso-acceso').innerHTML = `<div class="aviso bien">${esc(r.mensaje)}</div>`;
+    $('#acc-clave').focus();
   } catch (e) {
     $('#aviso-restaurar').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
     marcaErrores(caja, e.datos?.errores);
-  } finally { b.disabled = false; b.textContent = 'Poner la clave nueva'; }
+  } finally { b.disabled = false; b.textContent = 'Poner la contraseña nueva'; }
+});
+
+/* ─────────── las cuentas de este panel (solo dueño) ─────────── */
+// Quién entra y qué puede hacer. Crear, cambiar de nivel, apagar, reponer la
+// contraseña y borrar. Los candados los pone el servidor (el último dueño no
+// se toca, nadie se apaga a sí mismo); aquí sólo se enseñan sus mensajes.
+
+let cuNiveles = [];
+
+function fechaCorta(iso) {
+  if (!iso) return 'nunca ha entrado';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City', day: '2-digit', month: 'short', year: 'numeric' })
+    + ' ' + d.toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City', hour: '2-digit', minute: '2-digit', hour12: true });
+}
+
+function pintaNiveles(select, elegido) {
+  select.innerHTML = cuNiveles.map((n) => `<option value="${esc(n.nivel)}"${n.nivel === elegido ? ' selected' : ''}>${esc(n.nombre)}</option>`).join('');
+}
+
+async function cargarCuentas() {
+  if (!puedo('cuentas')) return;
+  const lista = $('#cuentas-lista');
+  try {
+    const d = await api('/api/admin/cuentas');
+    cuNiveles = d.niveles || [];
+    if (!$('#cu-nivel').options.length) {
+      pintaNiveles($('#cu-nivel'), 'consulta');
+      diceNivel();
+    }
+    const cuentas = d.cuentas || [];
+    const activas = cuentas.filter((c) => c.activo).length;
+    $('#cuentas-resumen').textContent = `${cuentas.length} cuenta${cuentas.length === 1 ? '' : 's'}, ${activas} activa${activas === 1 ? '' : 's'}. Solo la dueña o el dueño ve esto.`;
+    lista.innerHTML = cuentas.map((c) => {
+      const soyYo = c.id === yo.id;
+      return `<div class="cuenta${c.activo ? '' : ' inactiva'}" data-id="${esc(c.id)}">
+        <div class="datos">
+          <b>${esc(c.nombre || '(sin nombre)')}</b>${soyYo ? ' <span class="ayuda" style="display:inline;margin:0">(tú)</span>' : ''}
+          ${c.activo ? '' : ' <span class="etiqueta inactiva">sin acceso</span>'}
+          ${c.debe_cambiar ? ' <span class="etiqueta provisional">contraseña provisional</span>' : ''}<br>
+          <span style="color:var(--tenue);font-size:12px">${esc(c.email)} · última entrada: ${esc(fechaCorta(c.ultimo_acceso))}</span>
+        </div>
+        ${soyYo
+          ? `<span class="etiqueta nivel">${esc(NIVEL_DICE[c.nivel] || c.nivel)}</span>`
+          : `<select data-nivel="${esc(c.id)}" aria-label="Nivel de ${esc(c.email)}"></select>
+             <button class="btn suave chico" data-reponer="${esc(c.id)}" data-email="${esc(c.email)}">Reponer contraseña</button>
+             <button class="btn suave chico" data-apagar="${esc(c.id)}" data-activo="${c.activo ? 1 : 0}" data-email="${esc(c.email)}">${c.activo ? 'Quitar acceso' : 'Devolver acceso'}</button>
+             <button class="btn peligro chico" data-borrar="${esc(c.id)}" data-email="${esc(c.email)}">Borrar</button>`}
+      </div>`;
+    }).join('');
+
+    for (const sel of lista.querySelectorAll('[data-nivel]')) {
+      const c = cuentas.find((x) => x.id === sel.dataset.nivel);
+      pintaNiveles(sel, c.nivel);
+      sel.addEventListener('change', () => cambiaCuenta(sel.dataset.nivel, { nivel: sel.value }));
+    }
+    lista.querySelectorAll('[data-apagar]').forEach((b) => b.addEventListener('click', () => {
+      const activa = b.dataset.activo === '1';
+      if (activa && !confirm(`¿Quitarle el acceso a ${b.dataset.email}?\n\nNo se borra nada: deja de poder entrar hasta que se lo devuelvas.`)) return;
+      cambiaCuenta(b.dataset.apagar, { activo: !activa });
+    }));
+    lista.querySelectorAll('[data-reponer]').forEach((b) => b.addEventListener('click', async () => {
+      const clave = prompt(`Contraseña provisional para ${b.dataset.email}.\n\nDíctasela: al entrar, el panel la obliga a cambiarla por una suya.`, sugiereContrasena());
+      if (clave == null) return;
+      await accionCuenta(() => api(`/api/admin/cuentas/${b.dataset.reponer}/clave`, json({ clave })),
+        `Listo. ${b.dataset.email} entra con esa contraseña y tiene que cambiarla al entrar.`);
+    }));
+    lista.querySelectorAll('[data-borrar]').forEach((b) => b.addEventListener('click', async () => {
+      if (!confirm(`¿Borrar la cuenta de ${b.dataset.email}?\n\nSu rastro en la bitácora se queda. Si sólo quieres que no entre por un tiempo, mejor quítale el acceso.`)) return;
+      await accionCuenta(() => api(`/api/admin/cuentas/${b.dataset.borrar}`, { method: 'DELETE' }), `Se borró la cuenta de ${b.dataset.email}.`);
+    }));
+  } catch (e) {
+    lista.innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
+  }
+}
+
+async function accionCuenta(hacer, mensaje) {
+  $('#aviso-cuentas').innerHTML = '';
+  try {
+    await hacer();
+    $('#aviso-cuentas').innerHTML = `<div class="aviso bien">${esc(mensaje)}</div>`;
+  } catch (e) {
+    $('#aviso-cuentas').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
+  }
+  await cargarCuentas();
+}
+
+function cambiaCuenta(id, cambio) {
+  return accionCuenta(() => api(`/api/admin/cuentas/${id}`, { ...json(cambio), method: 'PUT' }), 'Guardado.');
+}
+
+function diceNivel() {
+  const n = cuNiveles.find((x) => x.nivel === $('#cu-nivel').value);
+  $('#cu-nivel-dice').textContent = n ? n.dice : '';
+}
+$('#cu-nivel').addEventListener('change', diceNivel);
+
+// Tres palabras y un número: fácil de dictar por teléfono, imposible de adivinar.
+const PALABRAS = ['roble', 'marea', 'lluvia', 'cobre', 'nube', 'piedra', 'trigo', 'sauce', 'faro', 'brisa', 'canto', 'sierra', 'arena', 'nogal', 'ceniza', 'viento', 'lirio', 'cedro', 'ámbar', 'ola'];
+function sugiereContrasena() {
+  const al = () => PALABRAS[Math.floor(Math.random() * PALABRAS.length)];
+  return `${al()}-${al()}-${al()}-${Math.floor(10 + Math.random() * 90)}`;
+}
+$('#cu-sugerir').addEventListener('click', () => { $('#cu-clave').value = sugiereContrasena(); });
+
+$('#btn-crear-cuenta').addEventListener('click', async () => {
+  const caja = $('#caja-cuentas');
+  limpiaErrores(caja);
+  const b = $('#btn-crear-cuenta'); b.disabled = true; b.textContent = 'Creando…';
+  try {
+    const r = await api('/api/admin/cuentas', json({
+      nombre: $('#cu-nombre').value, email: $('#cu-email').value, nivel: $('#cu-nivel').value, clave: $('#cu-clave').value,
+    }));
+    $('#cu-nombre').value = ''; $('#cu-email').value = ''; $('#cu-clave').value = '';
+    $('#aviso-cuentas').innerHTML = `<div class="aviso bien">Listo: ${esc(r.cuenta.email)} ya puede entrar con la contraseña provisional, y la tiene que cambiar al entrar.</div>`;
+    await cargarCuentas();
+  } catch (e) {
+    $('#aviso-cuentas').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
+    marcaErrores(caja, e.datos?.errores);
+  } finally { b.disabled = false; b.textContent = 'Crear la cuenta'; }
 });
 
 /* ─────────── cómo se ve la lista ─────────── */
@@ -521,7 +745,8 @@ async function abrirExpediente(id) {
     expAbierto = d;
     expCampos = d.campos || [];
     pintarExpediente(d);
-    engancharAutoguardado(id);
+    if (puedo('capturar')) engancharAutoguardado(id);
+    else for (const el of $('#exp-cuerpo').querySelectorAll('[data-c]')) el.disabled = true;
   } catch (e) {
     $('#exp-cuerpo').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
   }
