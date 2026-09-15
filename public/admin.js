@@ -543,9 +543,31 @@ $('#btn-olvide').addEventListener('click', async () => {
   } finally { b.disabled = false; b.textContent = 'Olvidé mi contraseña'; }
 });
 
+// En el arranque lo que se recupera es la clave compartida: el código llega
+// al mismo correo de la empresa y con él se pone una nueva, para poder llegar
+// a crear la primera cuenta.
+let resArranque = false;
+$('#btn-olvide-arranque').addEventListener('click', async () => {
+  $('#arranque-error').textContent = '';
+  const b = $('#btn-olvide-arranque'); b.disabled = true; b.textContent = 'Mandando el código…';
+  try {
+    const r = await api('/api/admin/clave/olvide', json({}));
+    resArranque = true;
+    $('#caja-arranque').classList.add('oculto');
+    $('#caja-restaurar').classList.remove('oculto');
+    $('#res-campo-email').classList.add('oculto');
+    $('#caja-restaurar h2').textContent = 'Recuperar la clave compartida';
+    $('#txt-restaurar').innerHTML =
+      `Se mandó un código a <b>${esc(r.correo)}</b>, el correo configurado de la empresa. Vence en 15 minutos. Con él pones una clave compartida nueva; sirve para entrar a crear tu cuenta de dueño.`;
+    $('#res-codigo').focus();
+  } catch (e) {
+    $('#arranque-error').textContent = e.message;
+  } finally { b.disabled = false; b.textContent = 'Olvidé la clave compartida'; }
+});
+
 $('#btn-cancelar-res').addEventListener('click', () => {
   $('#caja-restaurar').classList.add('oculto');
-  $('#caja-cuenta').classList.remove('oculto');
+  $(resArranque ? '#caja-arranque' : '#caja-cuenta').classList.remove('oculto');
   $('#res-codigo').value = ''; $('#res-nueva').value = ''; $('#res-nueva2').value = '';
 });
 
@@ -560,6 +582,14 @@ $('#btn-restaurar').addEventListener('click', async () => {
       email: $('#res-email').value, codigo: $('#res-codigo').value, nueva: $('#res-nueva').value,
     }));
     caja.classList.add('oculto');
+    $('#res-codigo').value = ''; $('#res-nueva').value = ''; $('#res-nueva2').value = '';
+    if (r.arranque) {
+      $('#caja-arranque').classList.remove('oculto');
+      $('#arranque-error').textContent = '';
+      $('#caja-arranque .ayuda').innerHTML = `<div class="aviso bien">${esc(r.mensaje)}</div>`;
+      $('#clave-arranque').focus();
+      return;
+    }
     $('#caja-cuenta').classList.remove('oculto');
     $('#acc-email').value = $('#res-email').value;
     $('#acc-clave').value = '';

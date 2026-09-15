@@ -108,12 +108,49 @@ try {
   rev(await visible(pd, '#caja-arranque'), 'se enseña el de la clave compartida');
   await sinScroll(pd, 'la pantalla del arranque');
 
+  // 0.11.1: si se perdió la clave compartida antes de crear la primera cuenta,
+  // «Olvidé la clave compartida» manda el código al correo de la empresa y con
+  // él se pone una nueva. Sólo existe mientras no hay cuentas.
+  rev(await visible(pd, '#btn-olvide-arranque'), 'en el arranque hay «Olvidé la clave compartida»');
+  {
+    const c = cliente();
+    const olv = await c('/api/admin/clave/olvide', {});
+    rev(olv.status === 200 && olv.datos.arranque === true && /^\d{6}$/.test(olv.datos.codigo_prueba || ''), 'sin cuentas, «olvidé» sin correo da el código de la clave compartida', JSON.stringify(olv.datos));
+    const olv2 = await c('/api/admin/clave/olvide', {});
+    rev(olv2.status === 429, 'un segundo código antes del minuto se niega', String(olv2.status));
+    const mala = await c('/api/admin/clave/restaurar', { codigo: '000000', nueva: 'clave compartida nueva 1' });
+    rev(mala.status === 401, 'un código equivocado no la cambia', String(mala.status));
+    const rest = await c('/api/admin/clave/restaurar', { codigo: olv.datos.codigo_prueba, nueva: 'clave compartida nueva 1' });
+    rev(rest.status === 200 && rest.datos.arranque === true, 'con el código se pone una clave compartida nueva', JSON.stringify(rest.datos));
+    const vieja = await cliente()('/api/admin/entrar', { clave: CLAVE_COMPARTIDA });
+    rev(vieja.status === 401, 'la clave compartida de instalación ya no abre', String(vieja.status));
+    const nuevaAbre = await cliente()('/api/admin/entrar', { clave: 'clave compartida nueva 1' });
+    rev(nuevaAbre.status === 200 && nuevaAbre.datos.arranque === true, 'la nueva sí abre, en modo arranque', JSON.stringify(nuevaAbre.datos));
+  }
+  // Y el mismo camino desde la pantalla: el código se lee de la respuesta,
+  // porque la pantalla no lo enseña (en producción llega por correo).
+  const [respOlv] = await Promise.all([
+    pd.waitForResponse((r) => r.url().endsWith('/api/admin/clave/olvide'), { timeout: 70000 }),
+    (async () => { await pd.waitForTimeout(61000); await pd.click('#btn-olvide-arranque'); })(),
+  ]);
+  const codigoPantalla = (await respOlv.json()).codigo_prueba;
+  await pd.waitForSelector('#caja-restaurar:not(.oculto)', { timeout: 5000 });
+  rev(!(await visible(pd, '#res-campo-email')), 'en el arranque, recuperar no pide correo');
+  rev((await pd.locator('#caja-restaurar h2').textContent()).includes('clave compartida'), 'la tarjeta dice que es la clave compartida');
+  await pd.fill('#res-codigo', codigoPantalla);
+  await pd.fill('#res-nueva', 'clave compartida nueva 2');
+  await pd.fill('#res-nueva2', 'clave compartida nueva 2');
+  await pd.click('#btn-restaurar');
+  await pd.waitForSelector('#caja-arranque:not(.oculto)', { timeout: 5000 });
+  rev((await pd.locator('#caja-arranque .aviso.bien').count()) === 1, 'al poner la nueva se regresa al arranque con el aviso en verde');
+  const CLAVE_ARRANQUE = 'clave compartida nueva 2';
+
   await pd.fill('#clave-arranque', 'una clave que no es');
   await pd.click('#btn-arranque');
   await pd.waitForFunction(() => document.querySelector('#arranque-error')?.textContent.trim().length > 0, null, { timeout: 5000 });
   rev((await pd.locator('#arranque-error').textContent()).includes('Clave incorrecta'), 'la clave compartida mal escrita se rechaza');
 
-  await pd.fill('#clave-arranque', CLAVE_COMPARTIDA);
+  await pd.fill('#clave-arranque', CLAVE_ARRANQUE);
   await pd.click('#btn-arranque');
   await pd.waitForSelector('#caja-primera:not(.oculto)', { timeout: 5000 });
   rev(await visible(pd, '#caja-primera'), 'con la clave compartida se abre «Tu cuenta de dueño», no el panel');
@@ -142,8 +179,10 @@ try {
 
   seccion('2. La clave compartida ya no abre; el dueño da de alta a un admin desde la pantalla');
   const api = cliente();
-  const otra = await api('/api/admin/entrar', { clave: CLAVE_COMPARTIDA });
+  const otra = await api('/api/admin/entrar', { clave: CLAVE_ARRANQUE });
   rev(otra.status === 400 && !otra.datos.ok, 'la clave compartida ya no abre nada', `${otra.status} ${otra.datos.error}`);
+  const olvSinCuenta = await api('/api/admin/clave/olvide', {});
+  rev(olvSinCuenta.status === 400, 'con cuentas, «olvidé» sin correo ya no da nada', String(olvSinCuenta.status));
   const estado = await api('/api/admin/estado');
   rev(estado.datos.cuentas === true, '/api/admin/estado ya dice que hay cuentas');
 
