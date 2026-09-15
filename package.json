@@ -8,7 +8,7 @@
     "deploy": "wrangler deploy",
     "db:local": "wrangler d1 execute t101-trabajadores --local --file=./schema.sql",
     "db:remote": "wrangler d1 execute t101-trabajadores --remote --file=./schema.sql",
-    "prueba": "node pruebas/0101-avisos-al-cambiar-de-correo.mjs"
+    "prueba": "node pruebas/0110-reglas-de-cuentas.mjs && node pruebas/0111-cuentas-admin.mjs && node pruebas/0101-avisos-al-cambiar-de-correo.mjs"
   },
   "devDependencies": {
     "playwright": "^1.63.0",

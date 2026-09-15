@@ -145,11 +145,23 @@ Gotchas de este entorno:
   PDF con casillas de qué llevan, ZIP con documentos, papelera de 30 días,
   bitácora de movimientos con 10 casillas (accesos y expedientes; lo del panel
   se apunta pero se lee en el maestro), CSV de todo.
-- **La clave del panel de la empresa ya no está en el repositorio.** Vive
-  hasheada (PBKDF2) en la base del Worker. Se cambia desde el panel; con
-  "Olvidé la clave" llega un código al `CORREO_AVISOS`. No se puede repetir una
-  de los últimos 6 meses; la de instalación queda prohibida para siempre.
-  `CLAVE_ADMIN` solo sirve para la primera entrada.
+- **Cuentas de administración con contraseña (0.11, 15-sep).** Tabla
+  `administradores`: cada persona entra a `/admin` con su correo y su
+  contraseña (PBKDF2 de `src/lib.js`, `VUELTAS_CLAVE` = 100 000). Niveles
+  `dueno` / `admin` / `consulta`; la tabla de permisos y las reglas de
+  contraseña viven en `src/cuentas.js` (sin base, probadas en
+  `pruebas/0110-reglas-de-cuentas.mjs`). `exigeAdmin` consulta la base en cada
+  llamada: quitarle el acceso a alguien surte efecto al momento.
+  `exigePermiso('exportar'|'baja'|'capturar'|'cuentas')` cierra cada ruta.
+  La bitácora apunta el correo de la sesión, nunca `'admin'`.
+  **Arranque:** mientras `administradores` esté vacía, la clave compartida de
+  `claves_admin` (o `CLAVE_ADMIN`) abre, pero sólo para crear la primera
+  cuenta, que es de dueño; en cuanto existe una cuenta, deja de valer.
+  «Olvidé mi contraseña» reusa `codigos_admin`: el código va a
+  `CORREO_AVISOS` y su hash lleva el correo de la cuenta. Toda contraseña que
+  pone otra persona (alta, reposición) deja `debe_cambiar = 1`.
+  La prueba de punta a punta es `pruebas/0111-cuentas-admin.mjs`: levanta su
+  propio `wrangler dev` en una carpeta temporal y lee el `.sqlite` al final.
 - Multi-tenant: un Worker por cliente, `clientes/*.toml`, despliegue en matriz,
   alta por workflow con simulacro.
 - **roster101 central instalado** (base `abbf7f28-…`, Worker
@@ -158,9 +170,10 @@ Gotchas de este entorno:
   recordar, revisar, regresar y "abrirle su portal".
 
 **Mike tiene que hacer (no se puede desde el chat):**
-1. Entrar al panel de la empresa con la clave de siempre y **ponerle una
-   nueva**: hasta entonces sale en rojo "todavía estás entrando con la clave de
-   instalación". Después, borrar el secreto `CLAVE_ADMIN` del repo.
+1. Entrar al panel de la empresa (producción, `forespot`/Taller 101) con la
+   clave compartida de siempre y **crear su cuenta de dueño** en la pantalla
+   que sale. Hasta que lo haga, la clave compartida sigue abriendo (sólo para
+   eso). Después, dar de alta a su gente desde «Cuentas de este panel».
 2. Revisar el correo: ahí llegó la **clave del panel maestro**.
 3. Poner el secreto `GITHUB_TOKEN_ALTAS` (un PAT con permiso de Actions) para
    que el botón "Abrirle su portal" dispare el alta solo. Sin él, el botón
