@@ -534,6 +534,17 @@ async function claveVigente(env) {
   return await env.DB.prepare('SELECT * FROM claves_admin WHERE vigente = 1 LIMIT 1').first();
 }
 
+// Deja una clave compartida nueva como la vigente. Se usa sólo durante el
+// arranque, cuando se perdió la de siempre y todavía no hay cuentas.
+async function ponClaveCompartida(env, clave) {
+  const sal = salNueva();
+  const hash = await derivaClave(clave, sal);
+  await env.DB.prepare('UPDATE claves_admin SET vigente = 0 WHERE vigente = 1').run();
+  await env.DB.prepare(
+    'INSERT INTO claves_admin (hash, sal, vueltas, creada_en, vigente, quien) VALUES (?,?,?,?,1,?)'
+  ).bind(hash, sal, VUELTAS_CLAVE, ahora(), 'restauracion').run();
+}
+
 // Qué clave compartida abre hoy: la guardada en la base o, si nunca se cambió,
 // la de instalación (`CLAVE_ADMIN`).
 async function claveAbre(env, clave) {
@@ -796,16 +807,21 @@ app.post('/api/admin/clave', exigeSesion, async (c) => {
 const hashCodigoAdmin = (env, codigo, email) =>
   sha256(String(codigo || '').replace(/\D/g, '') + '|' + email + '|clave-admin|' + secreto(env));
 
+// Mientras no haya cuentas, lo que se recupera es la clave compartida del
+// arranque (0.11.1): el hash del código lleva esta marca en vez de un correo.
+const CUENTA_ARRANQUE = 'arranque';
+
 app.post('/api/admin/clave/olvide', async (c) => {
   const cuerpo = await c.req.json().catch(() => ({}));
-  const email = normalizaEmail(cuerpo.email);
+  const arranque = !(await hayCuentas(c.env));
+  const email = arranque ? CUENTA_ARRANQUE : normalizaEmail(cuerpo.email);
   const llave = quienIntenta(c);
   const t = Math.floor(Date.now() / 1000);
   const previo = await leeIntentos(c.env, llave);
   if (previo && previo.bloqueado_hasta > t) {
     return err(c, `Demasiados intentos. Vuelve a intentar en ${esperaLegible(previo.bloqueado_hasta - t)}.`, 429);
   }
-  if (!emailValido(email)) return err(c, 'Escribe el correo de tu cuenta.', 400, { errores: { email: 'Escribe un correo válido.' } });
+  if (!arranque && !emailValido(email)) return err(c, 'Escribe el correo de tu cuenta.', 400, { errores: { email: 'Escribe un correo válido.' } });
 
   const correo = c.env.CORREO_AVISOS || c.env.CORREO_PRIVACIDAD;
   if (!correo) return err(c, 'Este portal no tiene configurado un correo a dónde mandar el código.', 503);
@@ -822,8 +838,8 @@ app.post('/api/admin/clave/olvide', async (c) => {
 
   // Si el correo no es una cuenta activa no se manda nada, pero se contesta
   // igual: la respuesta no delata qué correos son cuentas.
-  const cuenta = await cuentaPorEmail(c.env, email);
-  const sirve = !!(cuenta && cuenta.activo);
+  const cuenta = arranque ? null : await cuentaPorEmail(c.env, email);
+  const sirve = arranque || !!(cuenta && cuenta.activo);
   let codigo = null;
   if (sirve) {
     codigo = String(Math.floor(100000 + Math.random() * 900000));
@@ -834,7 +850,7 @@ app.post('/api/admin/clave/olvide', async (c) => {
     ).bind(hash, ms + 15 * 60_000, ms).run();
     if (!enPruebas) {
       try {
-        await enviarCorreo(c.env, { para: correo, ...correoClaveAdmin(empresaDe(c.env), codigo, email) });
+        await enviarCorreo(c.env, { para: correo, ...correoClaveAdmin(empresaDe(c.env), codigo, arranque ? '' : email) });
       } catch {
         return err(c, 'No se pudo mandar el correo. Inténtalo otra vez en un momento.', 502);
       }
@@ -843,16 +859,18 @@ app.post('/api/admin/clave/olvide', async (c) => {
     await new Promise((r) => setTimeout(r, 400));
   }
   await registra(c.env, llave, 'clave_recuperacion_pedida',
-    sirve ? `para ${email} · código mandado a ${tapaCorreo(correo)}` : `para ${email} · ese correo no es una cuenta activa`);
+    arranque ? `para la clave compartida del arranque · código mandado a ${tapaCorreo(correo)}`
+      : sirve ? `para ${email} · código mandado a ${tapaCorreo(correo)}` : `para ${email} · ese correo no es una cuenta activa`);
 
-  return c.json({ ok: true, correo: tapaCorreo(correo), ...(enPruebas && codigo ? { codigo_prueba: codigo } : {}) });
+  return c.json({ ok: true, arranque, correo: tapaCorreo(correo), ...(enPruebas && codigo ? { codigo_prueba: codigo } : {}) });
 });
 
 // Con el código, poner la contraseña nueva. No hace falta sesión: justamente el
 // caso es que no se puede entrar.
 app.post('/api/admin/clave/restaurar', async (c) => {
   const cuerpo = await c.req.json().catch(() => ({}));
-  const email = normalizaEmail(cuerpo.email);
+  const arranque = !(await hayCuentas(c.env));
+  const email = arranque ? CUENTA_ARRANQUE : normalizaEmail(cuerpo.email);
   const { codigo, nueva } = cuerpo;
   const llave = quienIntenta(c);
   const t = Math.floor(Date.now() / 1000);
@@ -867,8 +885,8 @@ app.post('/api/admin/clave/restaurar', async (c) => {
   if (fila.intentos >= 5) return err(c, 'Demasiados intentos con ese código. Pide uno nuevo.', 429);
 
   const hash = await hashCodigoAdmin(c.env, codigo, email);
-  const cuenta = emailValido(email) ? await cuentaPorEmail(c.env, email) : null;
-  if (!igualSeguro(hash, fila.hash) || !cuenta || !cuenta.activo) {
+  const cuenta = arranque ? null : (emailValido(email) ? await cuentaPorEmail(c.env, email) : null);
+  if (!igualSeguro(hash, fila.hash) || (!arranque && (!cuenta || !cuenta.activo))) {
     await c.env.DB.prepare('UPDATE codigos_admin SET intentos = intentos + 1 WHERE id = 1').run();
     await new Promise((r) => setTimeout(r, 700));
     return err(c, 'Código incorrecto.', 401, { errores: { codigo: 'No coincide.' } });
@@ -876,14 +894,21 @@ app.post('/api/admin/clave/restaurar', async (c) => {
 
   // El código está bien: ya nada más falta que la contraseña sirva. Se revisa
   // antes de quemarlo, para que un error de tecleo no obligue a pedir otro.
-  const problema = revisaContrasena(nueva, email);
+  const problema = revisaContrasena(nueva, arranque ? '' : email);
   if (problema) return err(c, problema, 422, { errores: { nueva: problema } });
 
-  await guardaContrasena(c.env, cuenta.id, String(nueva), false);
+  if (arranque) {
+    // Una clave compartida nueva, vigente, en claves_admin; las anteriores
+    // dejan de abrir. Sirve nada más para llegar a crear la primera cuenta.
+    await ponClaveCompartida(c.env, String(nueva));
+  } else {
+    await guardaContrasena(c.env, cuenta.id, String(nueva), false);
+  }
   await c.env.DB.prepare('DELETE FROM codigos_admin WHERE id = 1').run();
   if (previo) await limpiaIntentos(c.env, llave, t);
-  await registra(c.env, email, 'clave_restaurada', 'con el código que llegó al correo de la empresa');
-  return c.json({ ok: true, mensaje: 'Contraseña cambiada. Ya puedes entrar con la nueva.' });
+  await registra(c.env, arranque ? llave : email, 'clave_restaurada',
+    arranque ? 'la clave compartida del arranque, con el código que llegó al correo de la empresa' : 'con el código que llegó al correo de la empresa');
+  return c.json({ ok: true, arranque, mensaje: arranque ? 'Clave compartida cambiada. Entra con ella para crear tu cuenta de dueño.' : 'Contraseña cambiada. Ya puedes entrar con la nueva.' });
 });
 
 app.post('/api/admin/salir', (c) => {

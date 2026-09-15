@@ -50,6 +50,7 @@
       <div class="error" id="arranque-error"></div>
     </div>
     <button id="btn-arranque" class="btn primario bloque" style="margin-top:12px">Entrar</button>
+    <p class="pista centrado" style="margin:12px 0 0"><button type="button" id="btn-olvide-arranque" class="enlace">Olvidé la clave compartida</button></p>
   </div>
 
   <!-- La primera cuenta -->
@@ -112,7 +113,7 @@
     <h2>Recuperar mi contraseña</h2>
     <p class="ayuda" id="txt-restaurar"></p>
     <div id="aviso-restaurar"></div>
-    <div class="campo">
+    <div class="campo" id="res-campo-email">
       <label for="res-email">El correo de tu cuenta</label>
       <input id="res-email" type="email" autocomplete="username" autocapitalize="off" spellcheck="false" inputmode="email">
       <div class="error" data-e="email"></div>
