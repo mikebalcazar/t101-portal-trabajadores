@@ -25,8 +25,9 @@ y a administración le llega un aviso.
 
 Puede volver a entrar cuando quiera con el mismo correo y corregir o subir lo que falte.
 
-**Administración** entra en `/admin.html` con una clave, ve la tabla de todos,
-abre cualquier documento y exporta:
+**Administración** entra en `/admin.html` **con su cuenta de la suite 101** —el
+mismo correo de todas las aplicaciones: código de 6 dígitos, PIN o Google—, ve la
+tabla de todos, abre cualquier documento y exporta:
 
 ```
 Expedientes Taller 101 2026-09-01.zip
@@ -56,7 +57,9 @@ Expedientes Taller 101 2026-09-01.zip
 
 ## 3. Seguridad
 
-- Sin contraseñas: código de 6 dígitos al correo, vence en 10 minutos, se bloquea a los 5 intentos, y no se puede pedir otro antes de 45 segundos.
+- El trabajador entra sin contraseña: código de 6 dígitos al correo, vence en 10 minutos, se bloquea a los 5 intentos, y no se puede pedir otro antes de 45 segundos. Quien llega nuevo se da de alta solo, que es lo que hace que suba sus documentos sin que nadie lo capture antes.
+- El panel entra por la suite 101 y aquí ya no vive ninguna contraseña. Son **dos altas y las dos hacen falta**: en **workshop101** que la persona exista en la suite y traiga `roster101` entre sus apps; en **Cuentas de este panel** de qué nivel es. Se casan por el correo, y quien entra a la suite sin cuenta aquí ve una pantalla que se lo dice.
+- El dueño de la suite entra siempre al panel, y entra como dueño. Es lo que arranca un panel recién puesto —antes lo hacía una clave compartida— y la salida si el último dueño se queda fuera.
 - Sesión firmada con HMAC-SHA256 en cookie `HttpOnly` + `Secure` + `SameSite`.
 - Un trabajador solo puede ver sus propios documentos (probado: da 403 con el documento de otro).
 - Los documentos viven en R2 con llaves impredecibles y **solo se sirven a través del Worker**, nunca por URL pública.
@@ -91,8 +94,14 @@ SPF/DKIM que te dé en el DNS. Sin ese paso los correos no salen.
 bash scripts/local.sh
 ```
 
-Abre `http://localhost:8788`. El código de acceso **no** se manda por correo: sale
-en la respuesta y en la consola. La clave de admin en local es `admin123`.
+Abre `http://localhost:8788`. El código de acceso del trabajador **no** se manda
+por correo: sale en la respuesta y en la consola. El panel no abre en local: su
+puerta es la suite 101 y llega por un *service binding* que sólo existe en
+Cloudflare. Lo que decide quién entra al panel se prueba sin levantar nada:
+
+```
+npm run prueba
+```
 
 ## 6. Costo
 

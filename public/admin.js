@@ -34,95 +34,159 @@ const puedo = (que) => !!(yo && yo.permisos && yo.permisos[que]);
 const NIVEL_DICE = { dueno: 'Dueño', admin: 'Administración', consulta: 'Consulta' };
 const json = (cuerpo) => ({ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(cuerpo) });
 
+/* ─────────── la entrada es la de la suite 101 ───────────
+   Desde el 0.12 este panel no tiene contraseña propia. Se escribe el correo,
+   la suite manda un código de 6 dígitos —o se entra con el PIN, o con Google—
+   y desde ahí la sesión es la misma de todas las apps. La puerta del
+   trabajador NO cambia: sigue en la portada, con su correo y su código. */
+
+const SUITE = '/s101';
+
+const ERRORES_SUITE = {
+  codigo_invalido: 'Ese código no es. Revisa el correo y vuelve a intentar.',
+  pin_invalido: 'Ese PIN no es.',
+  clave_invalida: 'Esa contraseña no es.',
+  demasiados_intentos: 'Demasiados intentos. Espera un momento y vuelve a intentar.',
+  sin_permiso: 'Ese correo no tiene acceso a la suite. Pídeselo a quien administra tu empresa.',
+  sin_sesion: 'Tu sesión terminó. Vuelve a entrar.',
+  datos_invalidos: 'Revisa lo que escribiste.',
+  correo_no_configurado: 'El envío de códigos no está disponible ahora. Intenta más tarde.',
+  google_no_configurado: 'Entrar con Google todavía no está prendido. Entra con tu correo.',
+  origen_no_permitido: 'Esta dirección no está dada de alta para entrar con Google. Entra con tu correo.',
+  entrada_invalida: 'El boleto de Google ya no sirve. Vuelve a intentar.',
+  sin_respuesta: 'No hubo forma de llegar al servidor. Revisa tu señal.',
+};
+
+async function suite(ruta, cuerpo) {
+  let r;
+  try {
+    r = await fetch(SUITE + ruta, {
+      method: cuerpo ? 'POST' : 'GET',
+      headers: cuerpo ? { 'Content-Type': 'application/json' } : undefined,
+      body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+      credentials: 'same-origin',
+    });
+  } catch { throw new Error(ERRORES_SUITE.sin_respuesta); }
+  let d = null;
+  try { d = await r.json(); } catch { /* no vino JSON */ }
+  if (!r.ok || !d?.ok) {
+    const cual = d?.error ?? 'sin_respuesta';
+    throw Object.assign(new Error(ERRORES_SUITE[cual] ?? `Algo no salió bien (${cual}). Vuelve a intentar.`), { error: cual });
+  }
+  return d.data;
+}
+
+let correoSuite = '';
+let modo = 'codigo';   // codigo | pin
+
+function pintaCodigo() {
+  const esCodigo = modo === 'codigo';
+  $('#cod-titulo').textContent = esCodigo ? 'Tu código' : 'Tu PIN';
+  $('#cod-ayuda').textContent = esCodigo
+    ? `Te mandamos un código de 6 dígitos a ${correoSuite}. Vence en 10 minutos.`
+    : 'El PIN de seis dígitos que pusiste en la suite.';
+  $('#cod-rotulo').textContent = esCodigo ? 'Código de 6 dígitos' : 'PIN de 6 dígitos';
+  $('#cod-digitos').type = esCodigo ? 'text' : 'password';
+  $('#cod-digitos').setAttribute('autocomplete', esCodigo ? 'one-time-code' : 'current-password');
+  $('#btn-modo').textContent = esCodigo ? 'Entrar con mi PIN' : 'Mándame un código';
+  $('#cod-digitos').value = '';
+  $('#cod-error').textContent = '';
+  $('#cod-digitos').focus();
+}
+
+function pantallaAcceso(cual) {
+  for (const c of ['#caja-cuenta', '#caja-codigo', '#caja-sincuenta']) $(c).classList.add('oculto');
+  $(cual).classList.remove('oculto');
+}
+
 $('#btn-entrar').addEventListener('click', async () => {
-  const caja = $('#caja-cuenta');
-  limpiaErrores(caja);
+  $('#acc-error').textContent = '';
   $('#aviso-acceso').innerHTML = '';
+  const email = $('#acc-email').value.trim();
+  if (!email) { $('#acc-error').textContent = 'Escribe tu correo.'; return; }
   const b = $('#btn-entrar'); b.disabled = true;
   try {
-    await api('/api/admin/entrar', json({ email: $('#acc-email').value, clave: $('#acc-clave').value }));
-    $('#acc-clave').value = '';
-    await abrir();
-  } catch (e) {
-    $('#acc-error').textContent = e.message;
-    marcaErrores(caja, e.datos?.errores);
-  } finally { b.disabled = false; }
-});
-$('#acc-clave').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btn-entrar').click(); });
-$('#acc-email').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#acc-clave').focus(); });
-
-// El arranque: la clave compartida abre sólo para crear la primera cuenta.
-$('#btn-arranque').addEventListener('click', async () => {
-  $('#arranque-error').textContent = '';
-  const b = $('#btn-arranque'); b.disabled = true;
-  try {
-    const r = await api('/api/admin/entrar', json({ clave: $('#clave-arranque').value }));
-    $('#clave-arranque').value = '';
-    if (r.arranque) {
-      $('#caja-arranque').classList.add('oculto');
-      $('#caja-primera').classList.remove('oculto');
-      $('#pri-nombre').focus();
-    } else {
-      await abrir();
-    }
-  } catch (e) { $('#arranque-error').textContent = e.message; }
+    await suite('/auth/codigo', { correo: email });
+    correoSuite = email;
+    modo = 'codigo';
+    pantallaAcceso('#caja-codigo');
+    pintaCodigo();
+  } catch (e) { $('#acc-error').textContent = e.message; }
   finally { b.disabled = false; }
 });
-$('#clave-arranque').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btn-arranque').click(); });
+$('#acc-email').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btn-entrar').click(); });
 
-$('#btn-primera').addEventListener('click', async () => {
-  const caja = $('#caja-primera');
-  limpiaErrores(caja);
-  $('#aviso-primera').innerHTML = '';
-  if (!clavesCuadran('#caja-primera', '#pri-clave', '#pri-clave2')) return;
-  const b = $('#btn-primera'); b.disabled = true; b.textContent = 'Creando…';
+$('#btn-codigo').addEventListener('click', async () => {
+  $('#cod-error').textContent = '';
+  const v = $('#cod-digitos').value.replace(/\D/g, '');
+  if (v.length !== 6) { $('#cod-error').textContent = modo === 'codigo' ? 'El código son 6 dígitos.' : 'El PIN son 6 dígitos.'; return; }
+  const b = $('#btn-codigo'); b.disabled = true;
   try {
-    await api('/api/admin/cuentas/primera', json({
-      nombre: $('#pri-nombre').value, email: $('#pri-email').value, clave: $('#pri-clave').value,
-    }));
-    $('#pri-clave').value = ''; $('#pri-clave2').value = '';
-    await abrir();
-  } catch (e) {
-    $('#aviso-primera').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
-    marcaErrores(caja, e.datos?.errores);
-  } finally { b.disabled = false; b.textContent = 'Crear mi cuenta'; }
+    await suite('/auth/entrar', modo === 'codigo' ? { correo: correoSuite, codigo: v } : { correo: correoSuite, pin: v });
+    await entrarAlPanel();
+  } catch (e) { $('#cod-error').textContent = e.message; $('#cod-digitos').value = ''; }
+  finally { b.disabled = false; }
+});
+$('#cod-digitos').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btn-codigo').click(); });
+
+$('#btn-modo').addEventListener('click', async () => {
+  $('#cod-error').textContent = '';
+  if (modo === 'codigo') { modo = 'pin'; pintaCodigo(); return; }
+  const b = $('#btn-modo'); b.disabled = true;
+  try { await suite('/auth/codigo', { correo: correoSuite }); modo = 'codigo'; pintaCodigo(); }
+  catch (e) { $('#cod-error').textContent = e.message; }
+  finally { b.disabled = false; }
 });
 
-// El cambio obligado: alguien más puso esta contraseña y hay que cambiarla
-// antes de que el panel se abra.
-$('#btn-obligado').addEventListener('click', async () => {
-  const caja = $('#caja-obligado');
-  limpiaErrores(caja);
-  $('#aviso-obligado').innerHTML = '';
-  if (!clavesCuadran('#caja-obligado', '#ob-nueva', '#ob-nueva2')) return;
-  const b = $('#btn-obligado'); b.disabled = true; b.textContent = 'Cambiando…';
-  try {
-    await api('/api/admin/clave', json({ actual: $('#ob-actual').value, nueva: $('#ob-nueva').value }));
-    $('#ob-actual').value = ''; $('#ob-nueva').value = ''; $('#ob-nueva2').value = '';
-    $('#caja-obligado').classList.add('oculto');
-    await abrir();
-  } catch (e) {
-    $('#aviso-obligado').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
-    marcaErrores(caja, e.datos?.errores);
-  } finally { b.disabled = false; b.textContent = 'Cambiar mi contraseña'; }
+const otroCorreo = () => { correoSuite = ''; pantallaAcceso('#caja-cuenta'); $('#acc-email').focus(); };
+$('#btn-otro-correo').addEventListener('click', otroCorreo);
+$('#btn-otro-correo-2').addEventListener('click', otroCorreo);
+
+$('#btn-google').addEventListener('click', () => {
+  location.href = `${SUITE}/auth/google?volver_a=${encodeURIComponent(location.origin + location.pathname)}`;
 });
 
-async function salir() { await api('/api/admin/salir', { method:'POST' }); location.reload(); }
+/** Ya hay sesión de la suite. Falta saber qué es esta persona en el panel. */
+async function entrarAlPanel() {
+  try {
+    await abrir();
+  } catch (e) {
+    if (e.estado !== 401) throw e;
+    // La suite lo conoce, pero este panel no le ha dado cuenta.
+    const quien = await suite('/yo').catch(() => null);
+    $('#sincuenta-texto').textContent = quien
+      ? `Entraste a la suite como ${quien.usuario?.correo ?? correoSuite}, pero nadie te ha dado cuenta en este panel. Pídesela a quien lo administra.`
+      : 'No se pudo confirmar tu sesión. Vuelve a entrar.';
+    pantallaAcceso('#caja-sincuenta');
+  }
+}
+
+/** ¿Venimos de Google? Se canjea el boleto y se limpia la dirección, para que
+ *  recargar no intente usar dos veces lo que ya se gastó. */
+async function canjeaSiVengoDeGoogle() {
+  const u = new URL(location.href);
+  const entrada = u.searchParams.get('entrada');
+  if (!entrada) return false;
+  u.searchParams.delete('entrada');
+  history.replaceState(null, '', u.toString());
+  await suite('/auth/canje', { entrada });
+  return true;
+}
+
+async function salir() {
+  // Se cierra donde vive: en la suite. La ruta vieja se llama después nada más
+  // para barrer la cookie del panel de antes del 0.12.
+  await suite('/auth/salir', {}).catch(() => {});
+  await api('/api/admin/salir', { method:'POST' }).catch(() => {});
+  location.reload();
+}
 $('#btn-salir').addEventListener('click', salir);
-$('#btn-salir-ob').addEventListener('click', salir);
 $('#btn-refrescar').addEventListener('click', cargar);
 $('#buscar').addEventListener('input', pintar);
 
 async function abrir() {
   yo = await api('/api/admin/yo');      // si no hay sesión, esto lanza 401 y no abrimos nada
   $('#btn-salir').classList.remove('oculto');
-  if (yo.debe_cambiar) {
-    // Se entró con una contraseña que puso alguien más: antes de ver nada, una propia.
-    for (const c of ['#caja-cuenta', '#caja-arranque', '#caja-primera', '#caja-restaurar']) $(c).classList.add('oculto');
-    $('#caja-obligado').classList.remove('oculto');
-    $('#ob-actual').focus();
-    return;
-  }
   aplicaPermisos();
   ponVista(vista, false);   // solo acomoda; pintar viene con los datos
   await cargar();
@@ -421,26 +485,32 @@ async function pintarMarca() {
   } catch { /* si no se alcanza, se queda el texto genérico */ }
 }
 
-// Sin sesión, `abrir` truena con 401 y se queda la pantalla de la clave: eso es
+// Sin sesión, `abrir` truena con 401 y se queda la pantalla de entrada: eso es
 // lo normal. Cualquier otro error sí se enseña, para que un panel en blanco no
 // se vea igual que un panel que no ha entrado.
 (async () => {
   pintarMarca();
+  try {
+    const deGoogle = await canjeaSiVengoDeGoogle();
+    if (deGoogle) { await entrarAlPanel(); return; }
+  } catch (e) { $('#acc-error').textContent = e.message; }
+
   try { await abrir(); return; } catch (e) { if (e.estado !== 401) console.error('No se pudo abrir el panel:', e); }
-  // Sin sesión: ¿ya hay cuentas? Si no, se entra con la clave compartida del
-  // arranque para crear la primera.
+
+  // Sin sesión. Si el panel todavía no tiene ninguna cuenta se dice, porque
+  // entonces lo abre el dueño de la suite y no hay a quién pedirle el alta.
   try {
     const d = await api('/api/admin/estado');
-    $('#caja-cuenta').classList.toggle('oculto', !d.cuentas);
-    $('#caja-arranque').classList.toggle('oculto', d.cuentas);
-    (d.cuentas ? $('#acc-email') : $('#clave-arranque')).focus();
+    if (!d.cuentas) {
+      $('#aviso-acceso').innerHTML = '<div class="aviso">Este panel todavía no tiene cuentas. Lo abre el dueño de la suite 101, y la primera que dé de alta manda sobre las demás.</div>';
+    }
   } catch (e) { console.error('No se pudo saber si el panel tiene cuentas:', e); }
+  $('#acc-email').focus();
 })();
 
-/* ─────────── la clave del panel ─────────── */
-// La clave ya no vive en el repositorio: vive en el Worker, hasheada, junto con
-// las que ya se usaron. De aquí sale cambiarla sabiéndola, y recuperarla cuando
-// se olvidó con un código que llega al correo configurado de la empresa.
+/* ─────────── avisos de campo ───────────
+   Los usa la pantalla de dar de alta a alguien: el servidor devuelve qué campo
+   está mal y aquí se marca en su lugar, no en un renglón suelto arriba. */
 
 function limpiaErrores(caja) {
   for (const e of caja.querySelectorAll('.error')) e.textContent = '';
@@ -454,158 +524,11 @@ function marcaErrores(caja, errores = {}) {
   }
 }
 
-/* ─────────── la clave se escribe dos veces ───────────
-   Una clave mal tecleada no se nota: la pantalla enseña puntitos, el servidor
-   la guarda tal cual llegó, y el error aparece al siguiente intento de entrar
-   -- cuando ya no se puede. Por eso se pide dos veces, y en la segunda no se
-   deja pegar: copiar y pegar dos veces el mismo error de dedo no comprueba
-   nada. Tecleada de nuevo, un dedo equivocado casi nunca cae en el mismo sitio.
-
-   A cambio de la molestia va el botón de ver lo escrito: si se usa un gestor
-   de contraseñas y la clave es larga, se pega en el primer campo, se teclea en
-   el segundo, y si no cuadran se puede mirar por qué en vez de adivinar. */
-document.querySelectorAll('[data-sin-pegar]').forEach((el) => {
-  const no = (e) => {
-    e.preventDefault();
-    const caja = el.closest('.campo')?.querySelector('.error');
-    if (caja) caja.textContent = 'Aquí no se pega: escríbela para comprobar que no trae un error de dedo.';
-  };
-  el.addEventListener('paste', no);
-  el.addEventListener('drop', no);
-});
-
-function ojo(boton, ...campos) {
-  const b = $(boton);
-  if (!b) return;
-  b.addEventListener('click', () => {
-    const oculto = $(campos[0]).type === 'password';
-    campos.forEach((c) => { const el = $(c); if (el) el.type = oculto ? 'text' : 'password'; });
-    b.textContent = oculto ? 'Ocultar lo que escribí' : 'Ver lo que escribí';
-  });
-}
-ojo('#btn-ver-clave', '#cl-nueva', '#cl-nueva2');
-ojo('#btn-ver-res', '#res-nueva', '#res-nueva2');
-ojo('#btn-ver-pri', '#pri-clave', '#pri-clave2');
-ojo('#btn-ver-ob', '#ob-nueva', '#ob-nueva2');
-
-// Las dos tienen que coincidir antes de mandar nada. Se comprueba aquí y no en
-// el servidor a propósito: la segunda copia nunca sale de esta pantalla.
-function clavesCuadran(caja, uno, dos) {
-  const a = $(uno).value, b = $(dos).value;
-  if (a && a === b) return true;
-  const err = document.querySelector(`${caja} [data-e="nueva2"]`);
-  if (err) err.textContent = b ? 'No coinciden. Revisa las dos.' : 'Escribe la clave otra vez para confirmarla.';
-  $(dos).focus();
-  return false;
-}
-
-$('#btn-cambiar-clave').addEventListener('click', async () => {
-  const caja = $('#caja-clave');
-  limpiaErrores(caja);
-  $('#aviso-clave').innerHTML = '';
-  if (!clavesCuadran('#caja-clave', '#cl-nueva', '#cl-nueva2')) return;
-  const b = $('#btn-cambiar-clave'); b.disabled = true; b.textContent = 'Cambiando…';
-  try {
-    const r = await api('/api/admin/clave', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ actual: $('#cl-actual').value, nueva: $('#cl-nueva').value }),
-    });
-    $('#cl-actual').value = ''; $('#cl-nueva').value = ''; $('#cl-nueva2').value = '';
-    $('#aviso-clave').innerHTML = `<div class="aviso bien">${esc(r.mensaje)}</div>`;
-  } catch (e) {
-    $('#aviso-clave').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
-    marcaErrores(caja, e.datos?.errores);
-  } finally { b.disabled = false; b.textContent = 'Cambiar mi contraseña'; }
-});
-
-/* ── recuperar, desde la pantalla de acceso ── */
-
-$('#btn-olvide').addEventListener('click', async () => {
-  const email = $('#acc-email').value.trim();
-  limpiaErrores($('#caja-cuenta'));
-  if (!email) {
-    marcaErrores($('#caja-cuenta'), { email: 'Escribe primero el correo de tu cuenta.' });
-    $('#acc-email').focus();
-    return;
-  }
-  const b = $('#btn-olvide'); b.disabled = true; b.textContent = 'Mandando el código…';
-  try {
-    const r = await api('/api/admin/clave/olvide', json({ email }));
-    $('#caja-cuenta').classList.add('oculto');
-    $('#caja-restaurar').classList.remove('oculto');
-    $('#res-email').value = email;
-    $('#txt-restaurar').innerHTML =
-      `Si <b>${esc(email)}</b> es una cuenta de este panel, se mandó un código a <b>${esc(r.correo)}</b>, el correo configurado de la empresa. Vence en 15 minutos.`;
-    $('#res-codigo').focus();
-  } catch (e) {
-    $('#acc-error').textContent = e.message;
-    marcaErrores($('#caja-cuenta'), e.datos?.errores);
-  } finally { b.disabled = false; b.textContent = 'Olvidé mi contraseña'; }
-});
-
-// En el arranque lo que se recupera es la clave compartida: el código llega
-// al mismo correo de la empresa y con él se pone una nueva, para poder llegar
-// a crear la primera cuenta.
-let resArranque = false;
-$('#btn-olvide-arranque').addEventListener('click', async () => {
-  $('#arranque-error').textContent = '';
-  const b = $('#btn-olvide-arranque'); b.disabled = true; b.textContent = 'Mandando el código…';
-  try {
-    const r = await api('/api/admin/clave/olvide', json({}));
-    resArranque = true;
-    $('#caja-arranque').classList.add('oculto');
-    $('#caja-restaurar').classList.remove('oculto');
-    $('#res-campo-email').classList.add('oculto');
-    $('#caja-restaurar h2').textContent = 'Recuperar la clave compartida';
-    $('#txt-restaurar').innerHTML =
-      `Se mandó un código a <b>${esc(r.correo)}</b>, el correo configurado de la empresa. Vence en 15 minutos. Con él pones una clave compartida nueva; sirve para entrar a crear tu cuenta de dueño.`;
-    $('#res-codigo').focus();
-  } catch (e) {
-    $('#arranque-error').textContent = e.message;
-  } finally { b.disabled = false; b.textContent = 'Olvidé la clave compartida'; }
-});
-
-$('#btn-cancelar-res').addEventListener('click', () => {
-  $('#caja-restaurar').classList.add('oculto');
-  $(resArranque ? '#caja-arranque' : '#caja-cuenta').classList.remove('oculto');
-  $('#res-codigo').value = ''; $('#res-nueva').value = ''; $('#res-nueva2').value = '';
-});
-
-$('#btn-restaurar').addEventListener('click', async () => {
-  const caja = $('#caja-restaurar');
-  limpiaErrores(caja);
-  $('#aviso-restaurar').innerHTML = '';
-  if (!clavesCuadran('#caja-restaurar', '#res-nueva', '#res-nueva2')) return;
-  const b = $('#btn-restaurar'); b.disabled = true; b.textContent = 'Guardando…';
-  try {
-    const r = await api('/api/admin/clave/restaurar', json({
-      email: $('#res-email').value, codigo: $('#res-codigo').value, nueva: $('#res-nueva').value,
-    }));
-    caja.classList.add('oculto');
-    $('#res-codigo').value = ''; $('#res-nueva').value = ''; $('#res-nueva2').value = '';
-    if (r.arranque) {
-      $('#caja-arranque').classList.remove('oculto');
-      $('#arranque-error').textContent = '';
-      $('#caja-arranque .ayuda').innerHTML = `<div class="aviso bien">${esc(r.mensaje)}</div>`;
-      $('#clave-arranque').focus();
-      return;
-    }
-    $('#caja-cuenta').classList.remove('oculto');
-    $('#acc-email').value = $('#res-email').value;
-    $('#acc-clave').value = '';
-    $('#acc-error').textContent = '';
-    $('#aviso-acceso').innerHTML = `<div class="aviso bien">${esc(r.mensaje)}</div>`;
-    $('#acc-clave').focus();
-  } catch (e) {
-    $('#aviso-restaurar').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
-    marcaErrores(caja, e.datos?.errores);
-  } finally { b.disabled = false; b.textContent = 'Poner la contraseña nueva'; }
-});
-
 /* ─────────── las cuentas de este panel (solo dueño) ─────────── */
-// Quién entra y qué puede hacer. Crear, cambiar de nivel, apagar, reponer la
-// contraseña y borrar. Los candados los pone el servidor (el último dueño no
-// se toca, nadie se apaga a sí mismo); aquí sólo se enseñan sus mensajes.
+// Quién entra y qué puede hacer. Crear, cambiar de nivel, apagar y borrar. La
+// contraseña ya no se toca desde aquí: vive en la suite. Los candados los pone
+// el servidor (el último dueño no se toca, nadie se apaga a sí mismo); aquí
+// sólo se enseñan sus mensajes.
 
 let cuNiveles = [];
 
@@ -638,14 +561,12 @@ async function cargarCuentas() {
       return `<div class="cuenta${c.activo ? '' : ' inactiva'}" data-id="${esc(c.id)}">
         <div class="datos">
           <b>${esc(c.nombre || '(sin nombre)')}</b>${soyYo ? ' <span class="ayuda" style="display:inline;margin:0">(tú)</span>' : ''}
-          ${c.activo ? '' : ' <span class="etiqueta inactiva">sin acceso</span>'}
-          ${c.debe_cambiar ? ' <span class="etiqueta provisional">contraseña provisional</span>' : ''}<br>
+          ${c.activo ? '' : ' <span class="etiqueta inactiva">sin acceso</span>'}<br>
           <span style="color:var(--tenue);font-size:12px">${esc(c.email)} · última entrada: ${esc(fechaCorta(c.ultimo_acceso))}</span>
         </div>
         ${soyYo
           ? `<span class="etiqueta nivel">${esc(NIVEL_DICE[c.nivel] || c.nivel)}</span>`
           : `<select data-nivel="${esc(c.id)}" aria-label="Nivel de ${esc(c.email)}"></select>
-             <button class="btn suave chico" data-reponer="${esc(c.id)}" data-email="${esc(c.email)}">Reponer contraseña</button>
              <button class="btn suave chico" data-apagar="${esc(c.id)}" data-activo="${c.activo ? 1 : 0}" data-email="${esc(c.email)}">${c.activo ? 'Quitar acceso' : 'Devolver acceso'}</button>
              <button class="btn peligro chico" data-borrar="${esc(c.id)}" data-email="${esc(c.email)}">Borrar</button>`}
       </div>`;
@@ -660,12 +581,6 @@ async function cargarCuentas() {
       const activa = b.dataset.activo === '1';
       if (activa && !confirm(`¿Quitarle el acceso a ${b.dataset.email}?\n\nNo se borra nada: deja de poder entrar hasta que se lo devuelvas.`)) return;
       cambiaCuenta(b.dataset.apagar, { activo: !activa });
-    }));
-    lista.querySelectorAll('[data-reponer]').forEach((b) => b.addEventListener('click', async () => {
-      const clave = prompt(`Contraseña provisional para ${b.dataset.email}.\n\nDíctasela: al entrar, el panel la obliga a cambiarla por una suya.`, sugiereContrasena());
-      if (clave == null) return;
-      await accionCuenta(() => api(`/api/admin/cuentas/${b.dataset.reponer}/clave`, json({ clave })),
-        `Listo. ${b.dataset.email} entra con esa contraseña y tiene que cambiarla al entrar.`);
     }));
     lista.querySelectorAll('[data-borrar]').forEach((b) => b.addEventListener('click', async () => {
       if (!confirm(`¿Borrar la cuenta de ${b.dataset.email}?\n\nSu rastro en la bitácora se queda. Si sólo quieres que no entre por un tiempo, mejor quítale el acceso.`)) return;
@@ -697,24 +612,16 @@ function diceNivel() {
 }
 $('#cu-nivel').addEventListener('change', diceNivel);
 
-// Tres palabras y un número: fácil de dictar por teléfono, imposible de adivinar.
-const PALABRAS = ['roble', 'marea', 'lluvia', 'cobre', 'nube', 'piedra', 'trigo', 'sauce', 'faro', 'brisa', 'canto', 'sierra', 'arena', 'nogal', 'ceniza', 'viento', 'lirio', 'cedro', 'ámbar', 'ola'];
-function sugiereContrasena() {
-  const al = () => PALABRAS[Math.floor(Math.random() * PALABRAS.length)];
-  return `${al()}-${al()}-${al()}-${Math.floor(10 + Math.random() * 90)}`;
-}
-$('#cu-sugerir').addEventListener('click', () => { $('#cu-clave').value = sugiereContrasena(); });
-
 $('#btn-crear-cuenta').addEventListener('click', async () => {
   const caja = $('#caja-cuentas');
   limpiaErrores(caja);
   const b = $('#btn-crear-cuenta'); b.disabled = true; b.textContent = 'Creando…';
   try {
     const r = await api('/api/admin/cuentas', json({
-      nombre: $('#cu-nombre').value, email: $('#cu-email').value, nivel: $('#cu-nivel').value, clave: $('#cu-clave').value,
+      nombre: $('#cu-nombre').value, email: $('#cu-email').value, nivel: $('#cu-nivel').value,
     }));
-    $('#cu-nombre').value = ''; $('#cu-email').value = ''; $('#cu-clave').value = '';
-    $('#aviso-cuentas').innerHTML = `<div class="aviso bien">Listo: ${esc(r.cuenta.email)} ya puede entrar con la contraseña provisional, y la tiene que cambiar al entrar.</div>`;
+    $('#cu-nombre').value = ''; $('#cu-email').value = '';
+    $('#aviso-cuentas').innerHTML = `<div class="aviso bien">Listo: ${esc(r.cuenta.email)} ya tiene nivel en este panel. Si todavía no está en la suite 101, dale de alta ahí también —en workshop101, con roster101 entre sus aplicaciones— o no va a poder entrar.</div>`;
     await cargarCuentas();
   } catch (e) {
     $('#aviso-cuentas').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;

@@ -1,4 +1,4 @@
-// roster101 — cuentas de administración: niveles, permisos y reglas de contraseña
+// roster101 — cuentas de administración: niveles, permisos y candados
 //
 // Aquí no hay base ni Worker: son las reglas solas, para que se puedan probar
 // sin levantar nada (pruebas/0110-reglas-de-cuentas.mjs). Lo que toca la base
@@ -45,57 +45,13 @@ export function nivelValido(n) {
   return NIVELES.includes(n);
 }
 
-/* ─────────── la contraseña ───────────
- * Mínimo diez caracteres. A propósito no se exige mayúscula ni símbolo: eso
- * solo empuja a poner «1» y «!» al final y no protege nada. Lo que sí se niega
- * es lo que cualquiera probaría primero: el usuario del propio correo, las
- * obvias y las que son casi un solo carácter.
+/* ─────────── la contraseña se fue a la suite ───────────
+ * Hasta el 0.11 este panel tenía su propia contraseña y aquí vivían las reglas
+ * para escogerla. Desde el 0.12 la sesión la da la suite 101: el correo, el
+ * código, el PIN y la contraseña son los mismos de todas las apps, y las reglas
+ * viven en `suite101-api` (`src/lib.ts`, `revisaClave`). Aquí no quedó nada que
+ * revisar, y dejar una copia sin uso sólo invita a que las dos se separen.
  */
-export const CONTRASENA_MINIMO = 10;
-
-// Lo que se prueba primero cuando se adivina. Se compara sin mayúsculas ni
-// acentos, y basta con que la contraseña lo contenga.
-export const OBVIAS = [
-  'contrasena', 'password', 'passw0rd', 'clave123', 'admin123', 'administrador',
-  '1234567890', '0987654321', '123456789', 'qwertyuiop', 'asdfghjkl', 'zxcvbnm',
-  'abcdefghij', 'roster101', 'taller101', 'bienvenido', 'bienvenida', 'temporal',
-];
-
-export function normaliza(txt) {
-  return String(txt || '')
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .toLowerCase();
-}
-
-// Devuelve el problema, o null si la contraseña sirve.
-export function revisaContrasena(clave, email = '') {
-  const c = String(clave || '');
-  if (c.length < CONTRASENA_MINIMO) return `La contraseña necesita al menos ${CONTRASENA_MINIMO} caracteres.`;
-  if (c.trim() !== c) return 'La contraseña no puede empezar ni terminar con espacio: se pierde al copiarla.';
-  if (new Set(c).size < 4) return 'Esa contraseña es demasiado sencilla: usa al menos cuatro caracteres distintos.';
-
-  const plana = normaliza(c);
-  const usuario = normaliza(String(email || '').split('@')[0]);
-  if (usuario.length >= 3 && plana.includes(usuario)) {
-    return 'La contraseña no puede llevar el usuario de tu correo: es lo primero que cualquiera probaría.';
-  }
-  for (const obvia of OBVIAS) {
-    if (plana.includes(obvia)) return 'Esa contraseña es de las que cualquiera prueba primero. Escoge otra.';
-  }
-  // Puros dígitos seguidos, hacia arriba o hacia abajo, aunque no sean los diez.
-  if (/^\d+$/.test(plana) && esSecuencia(plana)) return 'Esa contraseña es una secuencia de números. Escoge otra.';
-  return null;
-}
-
-function esSecuencia(digitos) {
-  let sube = true, baja = true;
-  for (let i = 1; i < digitos.length; i++) {
-    const d = (digitos.charCodeAt(i) - digitos.charCodeAt(i - 1) + 10) % 10;
-    if (d !== 1) sube = false;
-    if (d !== 9) baja = false;
-  }
-  return sube || baja;
-}
 
 /* ─────────── los candados ───────────
  * Se deciden aquí, con la lista de cuentas en la mano, para que se puedan
