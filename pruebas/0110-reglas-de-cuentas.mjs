@@ -1,11 +1,13 @@
-/* Mide las reglas de las cuentas del panel (0.11) sin Worker ni base: los
- * niveles y sus permisos, qué contraseñas se rechazan y los candados.
+/* Mide las reglas de las cuentas del panel sin Worker ni base: los niveles,
+ * sus permisos y los candados.
+ *
+ * Desde el 0.12 ya no hay reglas de contraseña que medir aquí: la sesión la da
+ * la suite 101 y las reglas viven en `suite101-api`, con sus propias pruebas.
  *
  *     node pruebas/0110-reglas-de-cuentas.mjs
  */
 import {
-  NIVELES, puede, permisosDe, nivelValido,
-  revisaContrasena, CONTRASENA_MINIMO, candado, duenosActivos,
+  NIVELES, puede, permisosDe, nivelValido, candado, duenosActivos,
 } from '../src/cuentas.js';
 
 let fallas = 0;
@@ -31,27 +33,6 @@ rev(!puede('consulta', 'capturar'), 'consulta NO captura en expedientes ajenos')
 rev(!puede('otro', 'expedientes') && !puede(undefined, 'fichas'), 'un nivel que no existe no puede nada');
 rev(!nivelValido('arranque') && nivelValido('consulta'), '«arranque» no es un nivel que se pueda dar de alta');
 rev(Object.keys(permisosDe('dueno')).length === 6, 'permisosDe devuelve la tabla completa', Object.keys(permisosDe('dueno')).join(','));
-
-console.log('\nContraseñas:');
-rev(CONTRASENA_MINIMO === 10, 'el mínimo es 10');
-rev(revisaContrasena('corta1234') !== null, 'nueve caracteres se rechazan');
-rev(revisaContrasena('diez chars') === null, 'diez caracteres pasan (con espacio adentro)');
-rev(revisaContrasena('minusculas sin nada mas') === null, 'sin mayúscula ni símbolo pasa: no se exigen');
-rev(revisaContrasena(' empieza con espacio') !== null, 'con espacio al principio se rechaza');
-rev(revisaContrasena('aaaaaaaaaab') !== null, 'con menos de cuatro caracteres distintos se rechaza');
-rev(revisaContrasena('mike.balcazar2026', 'mike.balcazar@ejemplo.mx') !== null, 'con el usuario del correo se rechaza');
-rev(revisaContrasena('MIKEBALCAZAR-99', 'mike.balcazar@ejemplo.mx') === null, 'el usuario con punto no es el mismo que sin punto: pasa');
-rev(revisaContrasena('MIKE-y-punto-99', 'mike@ejemplo.mx') !== null, 'el usuario se busca sin mayúsculas');
-rev(revisaContrasena('otra cosa larga', 'ab@ejemplo.mx') === null, 'un usuario de dos letras no cuenta (estaría en cualquier palabra)');
-rev(revisaContrasena('Contraseña2026') !== null, '«Contraseña2026» es obvia (con acento y mayúscula)');
-rev(revisaContrasena('password12') !== null, '«password12» es obvia');
-rev(revisaContrasena('1234567890') !== null, '«1234567890» es obvia');
-rev(revisaContrasena('9876543210') !== null, 'los dígitos al revés también');
-rev(revisaContrasena('4567890123') !== null, 'una secuencia que da la vuelta también');
-rev(revisaContrasena('2938471650') === null, 'diez dígitos sin orden sí pasan');
-rev(revisaContrasena('roster101 es mia') !== null, '«roster101» adentro se rechaza');
-rev(revisaContrasena('roble-marea-lluvia-42') === null, 'tres palabras y un número pasan');
-rev(revisaContrasena(null) !== null && revisaContrasena(undefined) !== null, 'vacía se rechaza sin tronar');
 
 console.log('\nCandados:');
 const cuentas = [
@@ -80,4 +61,4 @@ rev(candado(dosUnoApagado, duena, duena, { nivel: 'admin' }) !== null, 'un dueñ
 
 console.log();
 if (fallas) { console.log(`FALLAS: ${fallas}`); process.exit(1); }
-console.log('0.11 medido: niveles, contraseñas y candados como los pide el encargo.');
+console.log('Medido: niveles y candados como los pide el encargo.');

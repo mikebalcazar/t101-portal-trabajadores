@@ -15,6 +15,8 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = "../public"
 binding = "ASSETS"
+# `/s101/*` tiene que llegar al Worker: es la puerta a la suite, no un archivo.
+run_worker_first = ["/api/*", "/s101/*"]
 
 [[d1_databases]]
 binding = "DB"
@@ -25,6 +27,13 @@ migrations_dir = "../migrations"
 [[r2_buckets]]
 binding = "DOCS"
 bucket_name = "roster101-PLANTILLA-docs"
+
+# La suite, desde el mismo origen. Es por donde entra el panel de este cliente:
+# su gente de administración usa su cuenta de la suite 101, no una contraseña
+# guardada aquí.
+[[services]]
+binding = "API"
+service = "suite101-api"
 
 # De aquí sale el nombre de la empresa en todo lo que ve su gente: el aviso de
 # privacidad, los correos, los archivos que se descargan y el documento bancario
@@ -37,7 +46,7 @@ CORREO_PRIVACIDAD = "privacidad@empresa.mx"
 CORREO_REMITENTE = "Nombre corto <expedientes@envios.taller101.mx>"
 CORREO_AVISOS = "quien-recibe-los-avisos@empresa.mx"
 AVISO_VERSION = "2026-09-03"
-PORTAL_VERSION = "0.11.1"
+PORTAL_VERSION = "0.12.0"
 
 # Barrido diario de la papelera, 4:00 UTC.
 [triggers]

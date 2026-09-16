@@ -6,6 +6,9 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = "./public"
 binding = "ASSETS"
+# Lo que atiende el Worker antes que los archivos del sitio. `/s101/*` tiene que
+# llegar al Worker: es la puerta a la suite, no un archivo de `public/`.
+run_worker_first = ["/api/*", "/s101/*"]
 
 [[d1_databases]]
 binding = "DB"
@@ -18,6 +21,13 @@ migrations_dir = "migrations"
 [[r2_buckets]]
 binding = "DOCS"
 bucket_name = "t101-documentos"
+
+# La suite, desde el mismo origen. No hay URL: es un *service binding*, o sea
+# una llamada de Worker a Worker que nunca sale a internet. Todo `/s101/*` va a
+# dar ahí con `X-App: roster101` puesto por el Worker.
+[[services]]
+binding = "API"
+service = "suite101-api"
 
 [vars]
 EMPRESA = "Taller 101"
@@ -37,7 +47,7 @@ AVISO_VERSION = "2026-09-03"
 # Versión del portal. Se ve arriba a la derecha en todas las pantallas; se sube
 # aquí en cada publicación y es la que hay que preguntar cuando alguien reporta
 # una falla, para saber qué estaba usando.
-PORTAL_VERSION = "0.11.1"
+PORTAL_VERSION = "0.12.0"
 
 # Barrido diario de la papelera: a las 4:00 UTC (10 u 11 de la noche en el centro
 # de México, según el horario). Borra de verdad lo que ya cumplió 30 días.

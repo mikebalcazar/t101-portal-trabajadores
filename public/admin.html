@@ -20,124 +20,43 @@
 </header>
 
 <main id="acceso" class="envoltura" style="max-width:420px">
-  <!-- Correo y contraseña: cada persona tiene su cuenta -->
+  <!-- La entrada es la de la suite 101: el mismo correo de todas las apps -->
   <div class="tarjeta" id="caja-cuenta">
     <h2>Panel de la empresa</h2>
-    <p class="ayuda">Solo para el equipo de administración de <span class="eco-empresa">la empresa</span>.</p>
+    <p class="ayuda">Solo para el equipo de administración de <span class="eco-empresa">la empresa</span>. Se entra con la cuenta de la suite 101, la misma de las demás aplicaciones.</p>
     <div id="aviso-acceso"></div>
     <div class="campo">
       <label for="acc-email">Tu correo</label>
       <input id="acc-email" type="email" autocomplete="username" autocapitalize="off" spellcheck="false" inputmode="email" placeholder="nombre@empresa.mx">
-      <div class="error" data-e="email"></div>
-    </div>
-    <div class="campo">
-      <label for="acc-clave">Tu contraseña</label>
-      <input id="acc-clave" type="password" autocomplete="current-password" placeholder="••••••••••">
       <div class="error" id="acc-error"></div>
     </div>
-    <button id="btn-entrar" class="btn primario bloque" style="margin-top:12px">Entrar</button>
-    <p class="pista centrado" style="margin:12px 0 0"><button type="button" id="btn-olvide" class="enlace">Olvidé mi contraseña</button></p>
+    <button id="btn-entrar" class="btn primario bloque" style="margin-top:12px">Continuar</button>
+    <p class="pista centrado" style="margin:10px 0 0">Te mandamos un código de 6 dígitos. Si ya tienes PIN, en la siguiente pantalla puedes entrar con él.</p>
+    <button id="btn-google" class="btn suave bloque" style="margin-top:12px">Entrar con Google</button>
   </div>
 
-  <!-- El arranque: mientras no haya ninguna cuenta, abre la clave compartida,
-       y sólo sirve para crear la primera cuenta, que es de dueño -->
-  <div class="tarjeta oculto" id="caja-arranque">
-    <h2>Panel de la empresa</h2>
-    <p class="ayuda">Este panel todavía no tiene cuentas. Entra con la clave compartida de siempre para crear la primera: será la cuenta de dueño.</p>
+  <!-- El código del correo, o el PIN -->
+  <div class="tarjeta oculto" id="caja-codigo">
+    <h2 id="cod-titulo">Tu código</h2>
+    <p class="ayuda" id="cod-ayuda"></p>
     <div class="campo">
-      <label for="clave-arranque">Clave compartida</label>
-      <input id="clave-arranque" type="password" autocomplete="current-password" placeholder="••••••••">
-      <div class="error" id="arranque-error"></div>
-    </div>
-    <button id="btn-arranque" class="btn primario bloque" style="margin-top:12px">Entrar</button>
-    <p class="pista centrado" style="margin:12px 0 0"><button type="button" id="btn-olvide-arranque" class="enlace">Olvidé la clave compartida</button></p>
-  </div>
-
-  <!-- La primera cuenta -->
-  <div class="tarjeta oculto" id="caja-primera">
-    <h2>Tu cuenta de dueño</h2>
-    <p class="ayuda">Es la primera cuenta del panel y manda sobre las demás. En cuanto la crees, la clave compartida deja de abrir: de ahí en adelante cada quien entra con su correo y su contraseña.</p>
-    <div id="aviso-primera"></div>
-    <div class="campo">
-      <label for="pri-nombre">Tu nombre</label>
-      <input id="pri-nombre" autocomplete="name" placeholder="Como te conocen en la empresa">
-      <div class="error" data-e="nombre"></div>
-    </div>
-    <div class="campo">
-      <label for="pri-email">Tu correo</label>
-      <input id="pri-email" type="email" autocomplete="username" autocapitalize="off" spellcheck="false" inputmode="email" placeholder="nombre@empresa.mx">
-      <div class="error" data-e="email"></div>
-    </div>
-    <div class="campo">
-      <label for="pri-clave">Tu contraseña</label>
-      <input id="pri-clave" type="password" autocomplete="new-password" placeholder="Al menos 10 caracteres">
-      <small class="pista">Larga y tuya. No hace falta mayúscula ni símbolo; sí que no lleve tu correo ni sea de las obvias.</small>
-      <div class="error" data-e="clave"></div>
-    </div>
-    <div class="campo">
-      <label for="pri-clave2">Escríbela otra vez</label>
-      <input id="pri-clave2" type="password" autocomplete="off" data-sin-pegar placeholder="La misma, tecleada">
-      <div class="error" data-e="nueva2"></div>
-    </div>
-    <p class="pista"><button type="button" id="btn-ver-pri" class="enlace">Ver lo que escribí</button></p>
-    <button id="btn-primera" class="btn primario bloque">Crear mi cuenta</button>
-  </div>
-
-  <!-- Cambio obligado: alguien más puso esta contraseña -->
-  <div class="tarjeta oculto" id="caja-obligado">
-    <h2>Pon tu propia contraseña</h2>
-    <p class="ayuda">La contraseña con la que entraste te la puso alguien más, así que esa persona la sabe. Cámbiala ahora por una tuya; hasta entonces el panel no se abre.</p>
-    <div id="aviso-obligado"></div>
-    <div class="campo">
-      <label for="ob-actual">La contraseña con la que entraste</label>
-      <input id="ob-actual" type="password" autocomplete="current-password" placeholder="••••••••••">
-      <div class="error" data-e="actual"></div>
-    </div>
-    <div class="campo">
-      <label for="ob-nueva">Tu contraseña nueva</label>
-      <input id="ob-nueva" type="password" autocomplete="new-password" placeholder="Al menos 10 caracteres">
-      <div class="error" data-e="nueva"></div>
-    </div>
-    <div class="campo">
-      <label for="ob-nueva2">Escríbela otra vez</label>
-      <input id="ob-nueva2" type="password" autocomplete="off" data-sin-pegar placeholder="La misma, tecleada">
-      <div class="error" data-e="nueva2"></div>
-    </div>
-    <p class="pista"><button type="button" id="btn-ver-ob" class="enlace">Ver lo que escribí</button></p>
-    <button id="btn-obligado" class="btn primario bloque">Cambiar mi contraseña</button>
-    <p class="pista centrado" style="margin:12px 0 0"><button type="button" id="btn-salir-ob" class="enlace">Salir sin cambiarla</button></p>
-  </div>
-
-  <!-- Recuperar: el código va al correo configurado de la empresa, no a uno que se escriba -->
-  <div class="tarjeta oculto" id="caja-restaurar">
-    <h2>Recuperar mi contraseña</h2>
-    <p class="ayuda" id="txt-restaurar"></p>
-    <div id="aviso-restaurar"></div>
-    <div class="campo" id="res-campo-email">
-      <label for="res-email">El correo de tu cuenta</label>
-      <input id="res-email" type="email" autocomplete="username" autocapitalize="off" spellcheck="false" inputmode="email">
-      <div class="error" data-e="email"></div>
-    </div>
-    <div class="campo">
-      <label for="res-codigo">Código de 6 dígitos</label>
-      <input id="res-codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456"
+      <label for="cod-digitos" id="cod-rotulo">Código de 6 dígitos</label>
+      <input id="cod-digitos" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456"
              style="font-size:24px;letter-spacing:8px;text-align:center">
-      <div class="error" data-e="codigo"></div>
+      <div class="error" id="cod-error"></div>
     </div>
-    <div class="campo">
-      <label for="res-nueva">Contraseña nueva</label>
-      <input id="res-nueva" type="password" autocomplete="new-password" placeholder="Al menos 10 caracteres">
-      <div class="error" data-e="nueva"></div>
-    </div>
-    <div class="campo">
-      <label for="res-nueva2">Escríbela otra vez</label>
-      <input id="res-nueva2" type="password" autocomplete="off" data-sin-pegar placeholder="La misma, tecleada">
-      <small class="pista">Aquí no se puede pegar. Es la pantalla donde un error de dedo cuesta más caro: se llega a ella sin poder entrar, así que si la contraseña nueva queda mal escrita, hay que volver a pedir otro código.</small>
-      <div class="error" data-e="nueva2"></div>
-    </div>
-    <p class="pista"><button type="button" id="btn-ver-res" class="enlace">Ver lo que escribí</button></p>
-    <button id="btn-restaurar" class="btn primario bloque">Poner la contraseña nueva</button>
-    <p class="pista centrado" style="margin:12px 0 0"><button type="button" id="btn-cancelar-res" class="enlace">Regresar</button></p>
+    <button id="btn-codigo" class="btn primario bloque" style="margin-top:12px">Entrar</button>
+    <p class="pista centrado" style="margin:12px 0 0">
+      <button type="button" id="btn-modo" class="enlace"></button> ·
+      <button type="button" id="btn-otro-correo" class="enlace">Usar otro correo</button>
+    </p>
+  </div>
+
+  <!-- Entró a la suite, pero nadie le dio cuenta en este panel -->
+  <div class="tarjeta oculto" id="caja-sincuenta">
+    <h2>Todavía no</h2>
+    <p class="ayuda" id="sincuenta-texto"></p>
+    <p class="pista centrado" style="margin:12px 0 0"><button type="button" id="btn-otro-correo-2" class="enlace">Usar otro correo</button></p>
   </div>
 
   <p class="pie"><a href="/">← Ir al portal del trabajador</a></p>
@@ -220,7 +139,8 @@
     <div id="aviso-cuentas"></div>
     <div id="cuentas-lista" class="cuentas"></div>
     <h3 style="margin:18px 0 6px;font-size:15px">Dar de alta a alguien</h3>
-    <p class="ayuda">Le pones una contraseña provisional y se la dices. Al entrar por primera vez el panel la obliga a cambiarla, así que tú no te quedas sabiéndola.</p>
+    <p class="ayuda">Aquí decides de qué nivel es en este panel. La contraseña ya no se pone aquí: entra con su cuenta de la suite 101.</p>
+    <p class="ayuda"><b>Son dos altas y las dos hacen falta.</b> Si la persona todavía no está en la suite, hay que darla de alta también en <b>workshop101</b>, con roster101 entre sus aplicaciones; si no, aquí va a quedar apuntada pero no va a poder entrar.</p>
     <div class="rejilla">
       <div class="campo">
         <label for="cu-nombre">Nombre</label>
@@ -238,43 +158,8 @@
         <small class="pista" id="cu-nivel-dice"></small>
         <div class="error" data-e="nivel"></div>
       </div>
-      <div class="campo">
-        <label for="cu-clave">Contraseña provisional</label>
-        <input id="cu-clave" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Al menos 10 caracteres">
-        <small class="pista"><button type="button" id="cu-sugerir" class="enlace">Sugerir una</button> · se ve completa a propósito: la vas a dictar.</small>
-        <div class="error" data-e="clave"></div>
-      </div>
     </div>
     <button id="btn-crear-cuenta" class="btn primario" style="margin-top:12px">Crear la cuenta</button>
-  </details>
-
-  <details class="tarjeta" id="caja-clave">
-    <summary class="titulo-plegable"><h2 style="display:inline;margin:0">🔑 Mi contraseña</h2>
-      <span class="ayuda" style="display:block;margin-top:4px" id="clave-estado">Cámbiala cuando quieras. Se pide la de hoy aunque ya estés adentro.</span>
-    </summary>
-    <div id="aviso-clave"></div>
-    <div class="rejilla" style="margin-top:14px">
-      <div class="campo">
-        <label for="cl-actual">La contraseña de hoy</label>
-        <input id="cl-actual" type="password" autocomplete="current-password" placeholder="••••••••••">
-        <small class="pista">Se pide aunque ya estés adentro: una sesión olvidada en otra computadora no debería alcanzar para quedarse con tu cuenta.</small>
-        <div class="error" data-e="actual"></div>
-      </div>
-      <div class="campo">
-        <label for="cl-nueva">La contraseña nueva</label>
-        <input id="cl-nueva" type="password" autocomplete="new-password" placeholder="Al menos 10 caracteres">
-        <small class="pista">Sin exigir mayúscula ni símbolo. Que no lleve tu correo ni sea de las obvias.</small>
-        <div class="error" data-e="nueva"></div>
-      </div>
-      <div class="campo">
-        <label for="cl-nueva2">Escríbela otra vez</label>
-        <input id="cl-nueva2" type="password" autocomplete="off" data-sin-pegar placeholder="La misma, tecleada">
-        <small class="pista">Aquí no se puede pegar, a propósito: si la primera trae un error de dedo, la segunda no lo repite igual y el portal te avisa antes de guardar. Una contraseña mal escrita deja fuera del panel.</small>
-        <div class="error" data-e="nueva2"></div>
-      </div>
-    </div>
-    <p class="pista"><button type="button" id="btn-ver-clave" class="enlace">Ver lo que escribí</button></p>
-    <button id="btn-cambiar-clave" class="btn primario" style="margin-top:6px">Cambiar mi contraseña</button>
   </details>
 
   <details class="tarjeta" id="caja-bitacora">

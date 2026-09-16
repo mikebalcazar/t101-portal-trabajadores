@@ -32,7 +32,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # La puerta, en una mesa de trabajo: con una suite de mentiras y cuatro
+  # renglones de base se comprueba quién entra al panel y —sobre todo— quién
+  # no. Corre antes de publicar: un despliegue no enseña esto hasta que ya es
+  # tarde.
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run prueba
+
   lista:
+    needs: pruebas
     runs-on: ubuntu-latest
     outputs:
       clientes: ${{ steps.armar.outputs.clientes }}
@@ -165,6 +181,39 @@ jobs:
         run: |
           set -euo pipefail
           printf '%s' "$SECRETO" | npx wrangler secret put SECRETO -c "${{ matrix.cliente.config }}"
+
+      # La puerta de la suite, medida desde afuera. Sólo en el portal de Taller
+      # 101: es el único que hoy tiene gente de verdad, y aquí no se entra ni se
+      # escribe.
+      - name: Medir la puerta del panel
+        id: medir
+        if: ${{ matrix.cliente.raiz }}
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          sleep 12
+          PORTAL="${{ steps.publicar.outputs.liga }}" node scripts/medir-puerta.mjs 2>&1 | tee /tmp/medicion.txt
+
+      - name: Dejar la medición en el commit
+        if: ${{ matrix.cliente.raiz }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -u
+          [ -f /tmp/medicion.txt ] || echo "No hubo medición que reportar." > /tmp/medicion.txt
+          jq -Rs '{body: ("**Medicion de la puerta del panel**\n\n```\n" + .[-60000:] + "\n```")}' \
+            /tmp/medicion.txt > /tmp/comentario.json
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/commits/$SHA/comments" \
+            -d @/tmp/comentario.json -o /dev/null -w 'comentario: %{http_code}\n'
+
+      - name: La medición tenía que salir verde
+        if: ${{ matrix.cliente.raiz && steps.medir.outcome == 'failure' }}
+        run: exit 1
 
       - name: Revisar que el portal responda
         run: |

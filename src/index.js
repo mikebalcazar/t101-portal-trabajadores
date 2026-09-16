@@ -5,22 +5,39 @@ import { Hono } from 'hono';
 import {
   ahora, uuid, firmar, verificar, sha256, igualSeguro,
   cookie, leerCookie, normalizaEmail, limpiaNombre, csvCampo, empresaDe,
-  salNueva, derivaClave, claveCoincide, VUELTAS_CLAVE,
+  salNueva, derivaClave, VUELTAS_CLAVE,
 } from './lib.js';
 import {
   revisaExpediente, emailValido,
   DOCS_OBLIGATORIOS, DOCS_OPCIONALES, NOMBRES_DOC,
   CAMPOS_EXPEDIENTE, faltantesCampos,
 } from './validar.js';
-import { enviarCorreo, correoCodigo, correoConfirmacion, correoAvisoAdmin, correoClaveAdmin } from './correo.js';
+import { enviarCorreo, correoCodigo, correoConfirmacion, correoAvisoAdmin } from './correo.js';
 import { armaZip, exportarCsv, armaZipFichas } from './exportar.js';
 import { armaFichas, nombreArchivoFichas, CAMPOS_FICHA, CAMPOS_POR_DEFECTO } from './ficha.js';
 import {
-  NIVELES, NOMBRE_NIVEL, DICE_NIVEL, CONTRASENA_MINIMO,
-  puede, permisosDe, nivelValido, revisaContrasena, candado,
+  NIVELES, NOMBRE_NIVEL, DICE_NIVEL,
+  puede, permisosDe, nivelValido, candado,
 } from './cuentas.js';
 
 const app = new Hono();
+
+/* ─────────── la puerta de la suite ───────────
+ * El panel le habla a `suite101-api` desde este mismo origen, por `/s101/*`,
+ * con un *service binding*: una llamada de Worker a Worker que nunca sale a
+ * internet. El Worker pone `X-App`; la pantalla no lo manda, y si lo manda se
+ * sobrescribe: la app no decide quién dice ser. */
+const APP = 'roster101';
+const PREFIJO_SUITE = '/s101';
+
+app.all(`${PREFIJO_SUITE}/*`, async (c) => {
+  if (!c.env.API) return c.json({ ok: false, error: 'La puerta de la suite no está conectada.' }, 503);
+  const u = new URL(c.req.url);
+  u.pathname = u.pathname.slice(PREFIJO_SUITE.length) || '/';
+  const p = new Request(u, c.req.raw);
+  p.headers.set('X-App', APP);
+  return await c.env.API.fetch(p);
+});
 
 const HORAS = 3600;
 const VIDA_SESION = 12 * HORAS;
@@ -139,28 +156,64 @@ async function sesionTrabajador(c) {
   return datos;
 }
 
-// La sesión del panel trae quién es y de qué nivel. Una sesión de antes del
-// 0.11 (sin nivel) ya no vale: hay que volver a entrar, ahora con correo.
-async function sesionAdmin(c) {
-  const tok = leerCookie(c.req, 't101_admin');
-  const datos = await verificar(tok, secreto(c.env));
-  if (!datos || datos.rol !== 'admin' || !datos.nivel) return null;
-  return datos;
+/* ─────────── el panel entra por la suite ───────────
+ * Desde el 0.12 el panel no tiene contraseña propia: la sesión la da la suite
+ * 101 —correo y código, PIN o cuenta de Google— y aquí sólo se pregunta quién
+ * es. La tabla `administradores` se queda, pero ya no guarda con qué entrar:
+ * guarda de qué nivel es cada quien, que es lo que sí es asunto de este panel.
+ *
+ * La puerta del trabajador NO cambia: sigue siendo su correo y un código, y
+ * quien llega nuevo se sigue dando de alta solo. Son dos puertas distintas a
+ * propósito (Mike, 16-sep). */
+
+/** Le pregunta a la suite quién viene. Devuelve lo que contesta `/yo`, o null. */
+async function laSuiteDiceQuien(c) {
+  if (!c.env.API) return null;
+  const galleta = c.req.raw.headers.get('cookie');
+  const llevada = c.req.raw.headers.get('authorization');
+  if (!galleta && !llevada) return null;
+  const h = new Headers({ 'X-App': APP });
+  if (galleta) h.set('cookie', galleta);
+  if (llevada) h.set('authorization', llevada);
+  const r = await c.env.API.fetch(new Request('https://suite101-api/yo', { headers: h }));
+  if (!r.ok) return null;
+  const cuerpo = await r.json().catch(() => null);
+  return cuerpo?.data || null;
 }
 
-// La sesión, y además que la cuenta siga viva. Se consulta la base en cada
-// llamada a propósito: quitarle el acceso a alguien tiene que surtir efecto en
-// ese momento, no cuando le venza la cookie ocho horas después. Lo que manda es
-// lo que dice la base hoy (nivel, activo, si debe cambiar), no lo que traía la
-// cookie cuando se firmó.
+/** ¿La suite le abre roster101 a esta persona? El dueño de la suite entra a
+ *  todo; a los demás se lo dice la lista de apps que les puso el administrador
+ *  de su empresa en workshop101. Vacía quiere decir todas. */
+const laSuiteLeAbre = (yo) =>
+  !!yo && (yo.superadmin === true ||
+    (yo.orgs || []).some((o) => !o.apps?.length || o.apps.includes(APP)));
+
+// Quién es en este panel. Se consulta la base en cada llamada a propósito:
+// quitarle el acceso a alguien tiene que surtir efecto en ese momento, no
+// cuando le venza su sesión de la suite. Lo que manda es lo que dice la base
+// hoy —nivel, activo—, no lo que traía la sesión cuando se abrió.
 async function sesionAdminViva(c) {
-  const s = await sesionAdmin(c);
-  if (!s || s.nivel === 'arranque') return null;
+  const yo = await laSuiteDiceQuien(c);
+  if (!laSuiteLeAbre(yo)) return null;
+  const email = normalizaEmail(yo.usuario?.correo || '');
+  if (!email) return null;
+
   const cuenta = await c.env.DB.prepare(
-    'SELECT id, email, nombre, nivel, activo, debe_cambiar FROM administradores WHERE id = ?'
-  ).bind(s.id).first();
-  if (!cuenta || !cuenta.activo) return null;
-  return { ...s, email: cuenta.email, nombre: cuenta.nombre, nivel: cuenta.nivel, debe_cambiar: !!cuenta.debe_cambiar };
+    'SELECT id, email, nombre, nivel, activo FROM administradores WHERE email = ?'
+  ).bind(email).first();
+
+  if (cuenta) {
+    if (!cuenta.activo) return null;
+    return { id: cuenta.id, email: cuenta.email, nombre: cuenta.nombre || yo.usuario?.nombre || '', nivel: cuenta.nivel };
+  }
+
+  // El dueño de la suite entra siempre, y entra como dueño. Es lo que arranca
+  // un panel recién puesto —antes lo hacía una clave compartida— y es la
+  // salida si un día el último dueño se queda fuera por un descuido.
+  if (yo.superadmin === true) {
+    return { id: `suite:${yo.usuario?.id ?? 'super'}`, email, nombre: yo.usuario?.nombre || 'Dueño de la suite', nivel: 'dueno', deLaSuite: true };
+  }
+  return null;
 }
 
 const exigeTrabajador = async (c, next) => {
@@ -170,36 +223,21 @@ const exigeTrabajador = async (c, next) => {
   await next();
 };
 
-// Cualquier cuenta viva, aunque todavía deba cambiar su contraseña: es lo que
-// se necesita justamente para cambiarla, para saber quién soy y para salir.
+// Cuenta viva. `exigeAdmin` era lo mismo más el cambio obligado de contraseña,
+// que ya no existe: se deja como alias para no tocar cuarenta rutas por un
+// nombre.
 const exigeSesion = async (c, next) => {
   const s = await sesionAdminViva(c);
-  if (!s) return err(c, 'Sesión de administración requerida.', 401);
+  if (!s) return err(c, 'Entra con tu cuenta de la suite 101.', 401);
   c.set('admin', s);
   await next();
 };
-
-// Todo lo demás del panel: cuenta viva y con la contraseña ya cambiada.
-const exigeAdmin = async (c, next) => {
-  const s = await sesionAdminViva(c);
-  if (!s) return err(c, 'Sesión de administración requerida.', 401);
-  if (s.debe_cambiar) return err(c, 'Antes de seguir tienes que cambiar tu contraseña.', 403, { debe_cambiar: true });
-  c.set('admin', s);
-  await next();
-};
+const exigeAdmin = exigeSesion;
 
 // Lo que cada nivel puede hacer se decide en cuentas.js; aquí solo se aplica.
 const exigePermiso = (que) => async (c, next) => {
   const s = c.get('admin');
   if (!s || !puede(s.nivel, que)) return err(c, 'Tu cuenta no tiene permiso para esto.', 403, { permiso: que });
-  await next();
-};
-
-// La sesión del arranque: abrió la clave compartida y sólo sirve para crear la
-// primera cuenta.
-const exigeArranque = async (c, next) => {
-  const s = await sesionAdmin(c);
-  if (!s || s.nivel !== 'arranque') return err(c, 'Sesión de arranque requerida.', 401);
   await next();
 };
 
@@ -449,7 +487,10 @@ app.delete('/api/docs/:id', exigeTrabajador, async (c) => {
 
 app.get('/api/docs/:id/archivo', async (c) => {
   const st = await sesionTrabajador(c);
-  const sa = await sesionAdmin(c);
+  // Quien no es el dueño del documento tiene que ser del panel, y eso lo dice
+  // la suite. Se pregunta sólo si no hay sesión de trabajador, para no gastar
+  // una llamada a la API en cada foto que abre alguien de obra.
+  const sa = st ? null : await sesionAdminViva(c);
   if (!st && !sa) return err(c, 'No autorizado.', 401);
   const d = await c.env.DB.prepare('SELECT * FROM documentos WHERE id = ?').bind(c.req.param('id')).first();
   if (!d) return err(c, 'Documento no encontrado.', 404);
@@ -467,98 +508,7 @@ app.get('/api/docs/:id/archivo', async (c) => {
 
 // ─────────────────────────── administración ───────────────────────────
 
-// ─────────────────── freno contra adivinar la clave ───────────────────
-// Tres fallos seguidos desde una misma dirección de internet y esa dirección
-// queda bloqueada. Cada bloqueo siguiente dura más que el anterior. El bloqueo
-// es por dirección, no global, para que nadie pueda dejar a la administración
-// fuera de su propio panel a puros intentos fallidos.
-
-const FALLOS_PERMITIDOS = 3;
-const CASTIGOS = [15 * 60, 60 * 60, 4 * 3600, 24 * 3600]; // segundos
-const OLVIDO = 30 * 60; // fallos sueltos se perdonan a la media hora
-
-function quienIntenta(c) {
-  return (
-    c.req.header('CF-Connecting-IP') ||
-    (c.req.header('x-forwarded-for') || '').split(',')[0].trim() ||
-    'desconocido'
-  );
-}
-
-function esperaLegible(seg) {
-  const min = Math.ceil(seg / 60);
-  if (min <= 1) return 'un minuto';
-  if (min < 90) return `${min} minutos`;
-  const hrs = Math.round(min / 60);
-  return hrs === 1 ? 'una hora' : `${hrs} horas`;
-}
-
-async function leeIntentos(env, llave) {
-  try {
-    return await env.DB.prepare('SELECT * FROM intentos_admin WHERE llave = ?').bind(llave).first();
-  } catch (e) { console.error('intentos_admin lee', e); return null; }
-}
-
-async function guardaIntentos(env, llave, fallos, castigos, hasta, t) {
-  try {
-    await env.DB.prepare(
-      `INSERT INTO intentos_admin (llave, fallos, castigos, bloqueado_hasta, visto_en)
-       VALUES (?,?,?,?,?)
-       ON CONFLICT(llave) DO UPDATE SET
-         fallos = excluded.fallos,
-         castigos = excluded.castigos,
-         bloqueado_hasta = excluded.bloqueado_hasta,
-         visto_en = excluded.visto_en`
-    ).bind(llave, fallos, castigos, hasta, t).run();
-  } catch (e) { console.error('intentos_admin guarda', e); }
-}
-
-async function limpiaIntentos(env, llave, t) {
-  try {
-    await env.DB.prepare('DELETE FROM intentos_admin WHERE llave = ?').bind(llave).run();
-    // De paso, tira los renglones viejos que ya no bloquean nada.
-    await env.DB.prepare('DELETE FROM intentos_admin WHERE bloqueado_hasta < ? AND visto_en < ?')
-      .bind(t, t - OLVIDO).run();
-  } catch (e) { console.error('intentos_admin limpia', e); }
-}
-
-/* ─────────────────── la clave compartida: solo para arrancar ───────────────────
- * Hasta el 0.10 el panel se abría con una sola clave para todos, guardada
- * hasheada en `claves_admin`. Desde el 0.11 cada persona tiene su cuenta
- * (`administradores`), y la clave compartida queda nada más para el arranque:
- * mientras no exista ninguna cuenta, abre —pero solo para crear la primera,
- * que es forzosamente de dueño—. En cuanto hay una cuenta, deja de valer.
- */
-
-async function claveVigente(env) {
-  return await env.DB.prepare('SELECT * FROM claves_admin WHERE vigente = 1 LIMIT 1').first();
-}
-
-// Deja una clave compartida nueva como la vigente. Se usa sólo durante el
-// arranque, cuando se perdió la de siempre y todavía no hay cuentas.
-async function ponClaveCompartida(env, clave) {
-  const sal = salNueva();
-  const hash = await derivaClave(clave, sal);
-  await env.DB.prepare('UPDATE claves_admin SET vigente = 0 WHERE vigente = 1').run();
-  await env.DB.prepare(
-    'INSERT INTO claves_admin (hash, sal, vueltas, creada_en, vigente, quien) VALUES (?,?,?,?,1,?)'
-  ).bind(hash, sal, VUELTAS_CLAVE, ahora(), 'restauracion').run();
-}
-
-// Qué clave compartida abre hoy: la guardada en la base o, si nunca se cambió,
-// la de instalación (`CLAVE_ADMIN`).
-async function claveAbre(env, clave) {
-  const fila = await claveVigente(env);
-  if (fila) return { ok: await claveCoincide(clave, fila) };
-  if (!env.CLAVE_ADMIN) return { ok: false, sinClave: true };
-  const a = await sha256(String(clave || ''));
-  const b = await sha256(env.CLAVE_ADMIN);
-  return { ok: igualSeguro(a, b) };
-}
-
 /* ─────────────────── las cuentas ─────────────────── */
-
-const VIDA_ADMIN = 8 * HORAS;
 
 async function hayCuentas(env) {
   const r = await env.DB.prepare('SELECT COUNT(*) AS n FROM administradores').first();
@@ -580,44 +530,6 @@ async function todasLasCuentas(env) {
   return results || [];
 }
 
-// Un renglón de mentiras contra el que se compara cuando el correo no es una
-// cuenta (o está apagada): así el fallo tarda lo mismo que un fallo normal y
-// por el tiempo no se puede saber qué correos son cuentas. Se deriva una sola
-// vez por instancia; la clave es aleatoria y nunca se guarda.
-let SENUELO = null;
-async function senuelo() {
-  if (!SENUELO) {
-    const sal = salNueva();
-    SENUELO = { sal, vueltas: VUELTAS_CLAVE, hash: await derivaClave(crypto.randomUUID(), sal) };
-  }
-  return SENUELO;
-}
-
-async function guardaContrasena(env, id, clave, debeCambiar) {
-  const sal = salNueva();
-  const hash = await derivaClave(clave, sal);
-  await env.DB.prepare(
-    'UPDATE administradores SET hash = ?, sal = ?, vueltas = ?, debe_cambiar = ? WHERE id = ?'
-  ).bind(hash, sal, VUELTAS_CLAVE, debeCambiar ? 1 : 0, id).run();
-}
-
-// Lo que va en la cookie. Se vuelve a firmar cada vez que algo de esto cambia
-// (la contraseña obligada ya se cambió, por ejemplo).
-async function abreSesion(c, cuenta) {
-  const datos = {
-    rol: 'admin',
-    id: cuenta.id,
-    email: cuenta.email,
-    nombre: cuenta.nombre,
-    nivel: cuenta.nivel,
-    debe_cambiar: !!cuenta.debe_cambiar,
-    exp: Math.floor(Date.now() / 1000) + VIDA_ADMIN,
-  };
-  const token = await firmar(datos, secreto(c.env));
-  c.header('Set-Cookie', cookie('t101_admin', token, VIDA_ADMIN));
-  return datos;
-}
-
 function publica(cuenta) {
   return {
     id: cuenta.id,
@@ -625,140 +537,16 @@ function publica(cuenta) {
     nombre: cuenta.nombre,
     nivel: cuenta.nivel,
     activo: !!cuenta.activo,
-    debe_cambiar: !!cuenta.debe_cambiar,
     creado_en: cuenta.creado_en,
     creado_por: cuenta.creado_por,
     ultimo_acceso: cuenta.ultimo_acceso,
   };
 }
 
-// ¿Ya hay cuentas? Lo lee la pantalla de acceso para saber qué formulario
-// enseñar: el de correo y contraseña, o el de la clave compartida del arranque.
+// ¿Ya hay cuentas? Lo lee la pantalla de acceso: si no hay ninguna, dice que
+// el panel está por estrenar y que lo abre el dueño de la suite.
 app.get('/api/admin/estado', async (c) => {
   return c.json({ cuentas: await hayCuentas(c.env) });
-});
-
-app.post('/api/admin/entrar', async (c) => {
-  const cuerpo = await c.req.json().catch(() => ({}));
-  const clave = String(cuerpo.clave || '');
-  const email = normalizaEmail(cuerpo.email);
-
-  const llave = quienIntenta(c);
-  const t = Math.floor(Date.now() / 1000);
-  const previo = await leeIntentos(c.env, llave);
-
-  // Bloqueado: se contesta sin tocar la base, para que un ataque no pueda
-  // gastar la cuota de escrituras a punta de intentos.
-  if (previo && previo.bloqueado_hasta > t) {
-    return err(
-      c,
-      `Demasiados intentos fallidos. Este dispositivo queda bloqueado; vuelve a intentar en ${esperaLegible(previo.bloqueado_hasta - t)}.`,
-      429,
-      { espera: previo.bloqueado_hasta - t }
-    );
-  }
-
-  const arranque = !(await hayCuentas(c.env));
-  let ok = false;
-  let cuenta = null;
-
-  if (arranque) {
-    // Todavía no hay cuentas: abre la clave compartida, nada más para crear
-    // la primera.
-    const veredicto = await claveAbre(c.env, clave);
-    if (veredicto.sinClave) return err(c, 'Este panel todavía no tiene clave. Avísale a quien lo instaló.', 500);
-    ok = veredicto.ok;
-  } else {
-    if (!emailValido(email)) {
-      return err(c, 'Escribe tu correo y tu contraseña.', 400, { errores: { email: 'Escribe un correo válido.' } });
-    }
-    cuenta = await cuentaPorEmail(c.env, email);
-    const sirve = !!(cuenta && cuenta.activo);
-    // Se deriva siempre, exista la cuenta o no, para gastar el mismo tiempo.
-    const coincide = await claveCoincide(clave, sirve ? cuenta : await senuelo());
-    ok = sirve && coincide;
-  }
-
-  if (!ok) {
-    await new Promise((r) => setTimeout(r, 700));
-
-    const sigueLaRacha = previo && (t - previo.visto_en) < OLVIDO;
-    const fallos = (sigueLaRacha ? previo.fallos : 0) + 1;
-    let castigos = previo ? previo.castigos : 0;
-    // Nunca se dice cuál de los dos estuvo mal.
-    const que = arranque ? 'Clave incorrecta.' : 'Correo o contraseña incorrectos.';
-    const detalle = arranque ? '' : `${email} · `;
-
-    if (fallos >= FALLOS_PERMITIDOS) {
-      const dura = CASTIGOS[Math.min(castigos, CASTIGOS.length - 1)];
-      castigos += 1;
-      const hasta = t + dura;
-      // El contador vuelve a cero: los tres siguientes fallos ganan el castigo
-      // que sigue, más largo.
-      await guardaIntentos(c.env, llave, 0, castigos, hasta, t);
-      await registra(c.env, llave, 'admin_bloqueado', `${detalle}${esperaLegible(dura)} (bloqueo #${castigos})`);
-      return err(
-        c,
-        `${que} Por seguridad, el acceso desde este dispositivo queda bloqueado ${esperaLegible(dura)}.`,
-        429,
-        { espera: dura }
-      );
-    }
-
-    await guardaIntentos(c.env, llave, fallos, castigos, 0, t);
-    await registra(c.env, llave, 'admin_clave_mala', `${detalle}intento ${fallos} de ${FALLOS_PERMITIDOS}`);
-    const quedan = FALLOS_PERMITIDOS - fallos;
-    return err(
-      c,
-      `${que} Te queda${quedan === 1 ? '' : 'n'} ${quedan} intento${quedan === 1 ? '' : 's'} antes de que se bloquee el acceso.`,
-      401,
-      { quedan }
-    );
-  }
-
-  if (previo) await limpiaIntentos(c.env, llave, t);
-
-  if (arranque) {
-    // Una sesión que solo sirve para crear la primera cuenta.
-    const token = await firmar({ rol: 'admin', nivel: 'arranque', exp: Math.floor(Date.now() / 1000) + HORAS }, secreto(c.env));
-    c.header('Set-Cookie', cookie('t101_admin', token, HORAS));
-    await registra(c.env, llave, 'ingreso_admin', 'con la clave compartida, para crear la primera cuenta');
-    return c.json({ ok: true, arranque: true });
-  }
-
-  await c.env.DB.prepare('UPDATE administradores SET ultimo_acceso = ? WHERE id = ?').bind(ahora(), cuenta.id).run();
-  const s = await abreSesion(c, cuenta);
-  await registra(c.env, cuenta.email, 'ingreso_admin', cuenta.debe_cambiar ? 'tiene que cambiar su contraseña' : '');
-  return c.json({ ok: true, debe_cambiar: s.debe_cambiar, nivel: s.nivel, nombre: s.nombre, email: s.email, permisos: permisosDe(s.nivel) });
-});
-
-// La primera cuenta, con la sesión del arranque. Es de dueño a fuerza: alguien
-// tiene que poder manejar las demás.
-app.post('/api/admin/cuentas/primera', exigeArranque, async (c) => {
-  const cuerpo = await c.req.json().catch(() => ({}));
-  const email = normalizaEmail(cuerpo.email);
-  const nombre = String(cuerpo.nombre || '').trim().slice(0, 120);
-  const clave = String(cuerpo.clave || '');
-
-  if (await hayCuentas(c.env)) return err(c, 'Este panel ya tiene cuentas. Entra con tu correo y tu contraseña.', 409);
-  const errores = {};
-  if (!emailValido(email)) errores.email = 'Escribe un correo válido.';
-  if (!nombre) errores.nombre = 'Escribe tu nombre.';
-  const problema = revisaContrasena(clave, email);
-  if (problema) errores.clave = problema;
-  if (Object.keys(errores).length) return err(c, 'Revisa lo marcado.', 422, { errores });
-
-  const id = uuid();
-  const sal = salNueva();
-  const hash = await derivaClave(clave, sal);
-  await c.env.DB.prepare(
-    `INSERT INTO administradores (id, email, nombre, hash, sal, vueltas, nivel, activo, debe_cambiar, creado_en, creado_por, ultimo_acceso)
-     VALUES (?,?,?,?,?,?,'dueno',1,0,?,'arranque',?)`
-  ).bind(id, email, nombre, hash, sal, VUELTAS_CLAVE, ahora(), ahora()).run();
-  const cuenta = await cuentaPorId(c.env, id);
-  const s = await abreSesion(c, cuenta);
-  await registra(c.env, email, 'cuenta_creada', `${email} · dueño · la primera, con la clave compartida`);
-  return c.json({ ok: true, nivel: s.nivel, nombre: s.nombre, email: s.email, permisos: permisosDe(s.nivel) });
 });
 
 // Quién soy y qué puedo hacer. Lo lee el panel al abrir.
@@ -766,151 +554,13 @@ app.get('/api/admin/yo', exigeSesion, async (c) => {
   const s = c.get('admin');
   return c.json({
     id: s.id, email: s.email, nombre: s.nombre, nivel: s.nivel,
-    debe_cambiar: !!s.debe_cambiar, permisos: permisosDe(s.nivel),
-    minimo: CONTRASENA_MINIMO,
+    permisos: permisosDe(s.nivel), de_la_suite: !!s.deLaSuite,
   });
 });
 
-// Cambiar mi propia contraseña. Se pide la de hoy aunque ya haya sesión: una
-// sesión olvidada en una computadora ajena no debería alcanzar para quedarse
-// con la cuenta. Es también el camino del cambio obligado.
-app.post('/api/admin/clave', exigeSesion, async (c) => {
-  const s = c.get('admin');
-  const { actual, nueva } = await c.req.json().catch(() => ({}));
-  const cuenta = await cuentaPorId(c.env, s.id);
-  if (!cuenta || !cuenta.activo) return err(c, 'Tu cuenta ya no está activa.', 401);
-
-  if (!await claveCoincide(String(actual || ''), cuenta)) {
-    await new Promise((r) => setTimeout(r, 700));
-    return err(c, 'Esa no es tu contraseña de hoy.', 401, { errores: { actual: 'No coincide con la contraseña actual.' } });
-  }
-  const problema = revisaContrasena(nueva, cuenta.email);
-  if (problema) return err(c, problema, 422, { errores: { nueva: problema } });
-  if (String(actual) === String(nueva)) {
-    return err(c, 'La nueva es igual a la de hoy. Escoge otra.', 422, { errores: { nueva: 'Es la misma de hoy.' } });
-  }
-
-  const eraObligado = !!cuenta.debe_cambiar;
-  await guardaContrasena(c.env, cuenta.id, String(nueva), false);
-  await abreSesion(c, { ...cuenta, debe_cambiar: 0 });
-  await registra(c.env, cuenta.email, 'clave_cambiada', eraObligado ? 'cambio obligado al entrar' : '');
-  return c.json({ ok: true, mensaje: 'Listo: de ahora en adelante entras con la contraseña nueva.' });
-});
-
-/* ─────────── olvidé mi contraseña ───────────
- * Se reusa `codigos_admin`, tal como estaba: el código va al correo configurado
- * de la empresa —nunca a uno que se escriba aquí—, y quien lee ese buzón
- * decide. El hash lleva el correo de la cuenta, así que el código sólo sirve
- * para la cuenta para la que se pidió.
- */
-
-const hashCodigoAdmin = (env, codigo, email) =>
-  sha256(String(codigo || '').replace(/\D/g, '') + '|' + email + '|clave-admin|' + secreto(env));
-
-// Mientras no haya cuentas, lo que se recupera es la clave compartida del
-// arranque (0.11.1): el hash del código lleva esta marca en vez de un correo.
-const CUENTA_ARRANQUE = 'arranque';
-
-app.post('/api/admin/clave/olvide', async (c) => {
-  const cuerpo = await c.req.json().catch(() => ({}));
-  const arranque = !(await hayCuentas(c.env));
-  const email = arranque ? CUENTA_ARRANQUE : normalizaEmail(cuerpo.email);
-  const llave = quienIntenta(c);
-  const t = Math.floor(Date.now() / 1000);
-  const previo = await leeIntentos(c.env, llave);
-  if (previo && previo.bloqueado_hasta > t) {
-    return err(c, `Demasiados intentos. Vuelve a intentar en ${esperaLegible(previo.bloqueado_hasta - t)}.`, 429);
-  }
-  if (!arranque && !emailValido(email)) return err(c, 'Escribe el correo de tu cuenta.', 400, { errores: { email: 'Escribe un correo válido.' } });
-
-  const correo = c.env.CORREO_AVISOS || c.env.CORREO_PRIVACIDAD;
-  if (!correo) return err(c, 'Este portal no tiene configurado un correo a dónde mandar el código.', 503);
-  // En desarrollo local (sin llave de correo y con MODO_PRUEBA=1) el código se
-  // devuelve en vez de mandarse. En producción siempre hay llave.
-  const enPruebas = !c.env.RESEND_API_KEY && c.env.MODO_PRUEBA === '1';
-  if (!c.env.RESEND_API_KEY && !enPruebas) return err(c, 'Este portal no puede mandar correos ahora mismo.', 503);
-
-  const previoCodigo = await c.env.DB.prepare('SELECT enviado_en FROM codigos_admin WHERE id = 1').first();
-  const ms = Date.now();
-  if (previoCodigo && ms - previoCodigo.enviado_en < 60_000) {
-    return err(c, 'Ya se mandó un código hace un momento. Revisa el correo de la empresa o espera un minuto.', 429);
-  }
-
-  // Si el correo no es una cuenta activa no se manda nada, pero se contesta
-  // igual: la respuesta no delata qué correos son cuentas.
-  const cuenta = arranque ? null : await cuentaPorEmail(c.env, email);
-  const sirve = arranque || !!(cuenta && cuenta.activo);
-  let codigo = null;
-  if (sirve) {
-    codigo = String(Math.floor(100000 + Math.random() * 900000));
-    const hash = await hashCodigoAdmin(c.env, codigo, email);
-    await c.env.DB.prepare(
-      `INSERT INTO codigos_admin (id, hash, expira, intentos, enviado_en) VALUES (1,?,?,0,?)
-       ON CONFLICT(id) DO UPDATE SET hash=excluded.hash, expira=excluded.expira, intentos=0, enviado_en=excluded.enviado_en`
-    ).bind(hash, ms + 15 * 60_000, ms).run();
-    if (!enPruebas) {
-      try {
-        await enviarCorreo(c.env, { para: correo, ...correoClaveAdmin(empresaDe(c.env), codigo, arranque ? '' : email) });
-      } catch {
-        return err(c, 'No se pudo mandar el correo. Inténtalo otra vez en un momento.', 502);
-      }
-    }
-  } else {
-    await new Promise((r) => setTimeout(r, 400));
-  }
-  await registra(c.env, llave, 'clave_recuperacion_pedida',
-    arranque ? `para la clave compartida del arranque · código mandado a ${tapaCorreo(correo)}`
-      : sirve ? `para ${email} · código mandado a ${tapaCorreo(correo)}` : `para ${email} · ese correo no es una cuenta activa`);
-
-  return c.json({ ok: true, arranque, correo: tapaCorreo(correo), ...(enPruebas && codigo ? { codigo_prueba: codigo } : {}) });
-});
-
-// Con el código, poner la contraseña nueva. No hace falta sesión: justamente el
-// caso es que no se puede entrar.
-app.post('/api/admin/clave/restaurar', async (c) => {
-  const cuerpo = await c.req.json().catch(() => ({}));
-  const arranque = !(await hayCuentas(c.env));
-  const email = arranque ? CUENTA_ARRANQUE : normalizaEmail(cuerpo.email);
-  const { codigo, nueva } = cuerpo;
-  const llave = quienIntenta(c);
-  const t = Math.floor(Date.now() / 1000);
-  const previo = await leeIntentos(c.env, llave);
-  if (previo && previo.bloqueado_hasta > t) {
-    return err(c, `Demasiados intentos. Vuelve a intentar en ${esperaLegible(previo.bloqueado_hasta - t)}.`, 429);
-  }
-
-  const fila = await c.env.DB.prepare('SELECT * FROM codigos_admin WHERE id = 1').first();
-  if (!fila) return err(c, 'Pide un código nuevo.', 401);
-  if (fila.expira < Date.now()) return err(c, 'El código venció. Pide uno nuevo.', 401);
-  if (fila.intentos >= 5) return err(c, 'Demasiados intentos con ese código. Pide uno nuevo.', 429);
-
-  const hash = await hashCodigoAdmin(c.env, codigo, email);
-  const cuenta = arranque ? null : (emailValido(email) ? await cuentaPorEmail(c.env, email) : null);
-  if (!igualSeguro(hash, fila.hash) || (!arranque && (!cuenta || !cuenta.activo))) {
-    await c.env.DB.prepare('UPDATE codigos_admin SET intentos = intentos + 1 WHERE id = 1').run();
-    await new Promise((r) => setTimeout(r, 700));
-    return err(c, 'Código incorrecto.', 401, { errores: { codigo: 'No coincide.' } });
-  }
-
-  // El código está bien: ya nada más falta que la contraseña sirva. Se revisa
-  // antes de quemarlo, para que un error de tecleo no obligue a pedir otro.
-  const problema = revisaContrasena(nueva, arranque ? '' : email);
-  if (problema) return err(c, problema, 422, { errores: { nueva: problema } });
-
-  if (arranque) {
-    // Una clave compartida nueva, vigente, en claves_admin; las anteriores
-    // dejan de abrir. Sirve nada más para llegar a crear la primera cuenta.
-    await ponClaveCompartida(c.env, String(nueva));
-  } else {
-    await guardaContrasena(c.env, cuenta.id, String(nueva), false);
-  }
-  await c.env.DB.prepare('DELETE FROM codigos_admin WHERE id = 1').run();
-  if (previo) await limpiaIntentos(c.env, llave, t);
-  await registra(c.env, arranque ? llave : email, 'clave_restaurada',
-    arranque ? 'la clave compartida del arranque, con el código que llegó al correo de la empresa' : 'con el código que llegó al correo de la empresa');
-  return c.json({ ok: true, arranque, mensaje: arranque ? 'Clave compartida cambiada. Entra con ella para crear tu cuenta de dueño.' : 'Contraseña cambiada. Ya puedes entrar con la nueva.' });
-});
-
+// Salir se hace en la suite (`/s101/auth/salir`), que es donde vive la sesión.
+// Esta ruta se queda para barrer la cookie del panel de antes del 0.12: quien
+// la traiga pegada en el navegador no la necesita para nada.
 app.post('/api/admin/salir', (c) => {
   c.header('Set-Cookie', cookie('t101_admin', '', 0));
   return c.json({ ok: true });
@@ -925,33 +575,34 @@ app.get('/api/admin/cuentas', exigeAdmin, exigeCuentas, async (c) => {
   return c.json({ cuentas: cuentas.map(publica), niveles: NIVELES.map((n) => ({ nivel: n, nombre: NOMBRE_NIVEL[n], dice: DICE_NIVEL[n] })) });
 });
 
-// Dar de alta a alguien. La contraseña que se le pone aquí es provisional: la
-// tiene que cambiar al entrar (`debe_cambiar`), para que quien la dio de alta
-// no se quede sabiéndola.
+// Dar de alta a alguien en este panel. Ya no se le pone contraseña: entra con
+// su cuenta de la suite. Lo que se decide aquí es de qué nivel es.
+//
+// Son dos altas y las dos hacen falta. Si la persona todavía no está en la
+// suite, esta la deja apuntada pero no la deja entrar: hay que darla de alta
+// también en workshop101, con roster101 entre sus apps. Se dice aquí mismo
+// para que nadie se quede esperando a que «ya quedó».
 app.post('/api/admin/cuentas', exigeAdmin, exigeCuentas, async (c) => {
   const yo = c.get('admin');
   const cuerpo = await c.req.json().catch(() => ({}));
   const email = normalizaEmail(cuerpo.email);
   const nombre = String(cuerpo.nombre || '').trim().slice(0, 120);
   const nivel = String(cuerpo.nivel || '');
-  const clave = String(cuerpo.clave || '');
 
   const errores = {};
   if (!emailValido(email)) errores.email = 'Escribe un correo válido.';
   if (!nombre) errores.nombre = 'Escribe su nombre.';
   if (!nivelValido(nivel)) errores.nivel = 'Escoge un nivel.';
-  const problema = revisaContrasena(clave, email);
-  if (problema) errores.clave = problema;
   if (Object.keys(errores).length) return err(c, 'Revisa lo marcado.', 422, { errores });
   if (await cuentaPorEmail(c.env, email)) return err(c, 'Ese correo ya tiene cuenta en este panel.', 409, { errores: { email: 'Ya tiene cuenta.' } });
 
   const id = uuid();
-  const sal = salNueva();
-  const hash = await derivaClave(clave, sal);
+  // Las columnas de la contraseña siguen en la tabla y se quedan vacías: se
+  // quitan cuando la puerta nueva lleve tiempo en pie, no el mismo día.
   await c.env.DB.prepare(
     `INSERT INTO administradores (id, email, nombre, hash, sal, vueltas, nivel, activo, debe_cambiar, creado_en, creado_por)
-     VALUES (?,?,?,?,?,?,?,1,1,?,?)`
-  ).bind(id, email, nombre, hash, sal, VUELTAS_CLAVE, nivel, ahora(), yo.email).run();
+     VALUES (?,?,?,'','',0,?,1,0,?,?)`
+  ).bind(id, email, nombre, nivel, ahora(), yo.email).run();
   await registra(c.env, yo.email, 'cuenta_creada', `${email} · ${NOMBRE_NIVEL[nivel].toLowerCase()}`);
   return c.json({ ok: true, cuenta: publica(await cuentaPorId(c.env, id)) });
 });
@@ -986,22 +637,6 @@ app.put('/api/admin/cuentas/:id', exigeAdmin, exigeCuentas, async (c) => {
     await c.env.DB.prepare('UPDATE administradores SET activo = ? WHERE id = ?').bind(cambio.activo ? 1 : 0, objetivo.id).run();
     await registra(c.env, yo.email, cambio.activo ? 'cuenta_activada' : 'cuenta_desactivada', objetivo.email);
   }
-  return c.json({ ok: true, cuenta: publica(await cuentaPorId(c.env, objetivo.id)) });
-});
-
-// Reponerle la contraseña a alguien: queda provisional y la tiene que cambiar
-// al entrar, para que quien se la puso no se quede sabiéndola.
-app.post('/api/admin/cuentas/:id/clave', exigeAdmin, exigeCuentas, async (c) => {
-  const yo = c.get('admin');
-  const { clave } = await c.req.json().catch(() => ({}));
-  const objetivo = await cuentaPorId(c.env, c.req.param('id'));
-  if (!objetivo) return err(c, 'Esa cuenta no existe.', 404);
-  if (objetivo.id === yo.id) return err(c, 'La tuya se cambia desde «Mi contraseña», sabiendo la de hoy.', 409);
-  const problema = revisaContrasena(clave, objetivo.email);
-  if (problema) return err(c, problema, 422, { errores: { clave: problema } });
-
-  await guardaContrasena(c.env, objetivo.id, String(clave), true);
-  await registra(c.env, yo.email, 'clave_reiniciada', `a ${objetivo.email} · provisional, la tiene que cambiar al entrar`);
   return c.json({ ok: true, cuenta: publica(await cuentaPorId(c.env, objetivo.id)) });
 });
 

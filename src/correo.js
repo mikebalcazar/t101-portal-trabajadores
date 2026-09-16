@@ -106,25 +106,3 @@ export function correoAvisoAdmin(empresa, t, faltantes) {
     texto: `${t.nombre} ${t.apellido_paterno} guardó su expediente. ${faltantes.length ? 'Pendientes: ' + faltantes.join(', ') : 'Completo.'}`,
   };
 }
-
-// El código para recuperar la clave del panel. Va al correo configurado de la
-// empresa, no a uno que se escriba en la pantalla: si se pudiera escribir, no
-// serviría de nada.
-// `cuenta` es el correo de la cuenta cuya contraseña se quiere reponer. El
-// código llega al correo configurado de la empresa, no a ese: quien lee el
-// buzón de la empresa decide si se la repone.
-export function correoClaveAdmin(empresa, codigo, cuenta = '') {
-  const de = cuenta ? ` de la cuenta <b>${cuenta}</b>` : '';
-  const deTexto = cuenta ? ` de la cuenta ${cuenta}` : '';
-  return {
-    asunto: `Recuperar la contraseña del panel: ${codigo} — ${empresa}`,
-    html: plantilla({
-      empresa,
-      titulo: 'Recuperar la contraseña del panel',
-      cuerpo: `<p style="margin:0 0 18px;font-size:15px;line-height:1.6">Alguien pidió reponer la contraseña${de} del panel de ${empresa}. Con este código se pone una nueva. Vence en 15 minutos.</p>
-      <div style="font-size:34px;font-weight:800;letter-spacing:10px;color:${AZUL};background:#f0f7fb;border-radius:10px;padding:16px;text-align:center">${codigo}</div>
-      <p style="margin:18px 0 0;font-size:14px;line-height:1.6"><strong>Si nadie de tu equipo lo pidió, no hagas nada:</strong> sin este código nadie puede cambiarla, y la de hoy sigue funcionando. Pero vale la pena que revises quién tiene acceso al panel.</p>`,
-    }),
-    texto: `Código para reponer la contraseña${deTexto} del panel de ${empresa}: ${codigo}. Vence en 15 minutos. Si nadie lo pidió, ignóralo: la contraseña de hoy sigue funcionando.`,
-  };
-}
