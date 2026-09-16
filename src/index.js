@@ -28,6 +28,11 @@ const app = new Hono();
  * internet. El Worker pone `X-App`; la pantalla no lo manda, y si lo manda se
  * sobrescribe: la app no decide quién dice ser. */
 const APP = 'roster101';
+// Con la que la suite guarda la lista de apps de cada persona. NO es el nombre
+// de la app: `miembros.apps` lleva llaves cortas (`roster`, `quell`, `dash`…),
+// que es lo que escribe workshop101 y lo que compara la propia API
+// (`LLAVE_APP` en schema/tipos.ts).
+const LLAVE = 'roster';
 const PREFIJO_SUITE = '/s101';
 
 app.all(`${PREFIJO_SUITE}/*`, async (c) => {
@@ -183,10 +188,14 @@ async function laSuiteDiceQuien(c) {
 
 /** ¿La suite le abre roster101 a esta persona? El dueño de la suite entra a
  *  todo; a los demás se lo dice la lista de apps que les puso el administrador
- *  de su empresa en workshop101. Vacía quiere decir todas. */
+ *  de su empresa en workshop101. Vacía quiere decir todas.
+ *
+ *  Se acepta la llave corta, que es la que se guarda, y también el nombre
+ *  largo: cuesta nada y evita que una lista escrita a mano deje a alguien fuera
+ *  sin que se entienda por qué. */
+const abre = (o) => !o.apps?.length || o.apps.includes(LLAVE) || o.apps.includes(APP);
 const laSuiteLeAbre = (yo) =>
-  !!yo && (yo.superadmin === true ||
-    (yo.orgs || []).some((o) => !o.apps?.length || o.apps.includes(APP)));
+  !!yo && (yo.superadmin === true || (yo.orgs || []).some(abre));
 
 // Quién es en este panel. Se consulta la base en cada llamada a propósito:
 // quitarle el acceso a alguien tiene que surtir efecto en ese momento, no

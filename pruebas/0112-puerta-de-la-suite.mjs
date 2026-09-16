@@ -27,10 +27,15 @@ const rev = (ok, que, dato = '') => {
 const SUITE = {
   duena: { usuario: { id: 'u1', correo: 'mike@forespot.com', nombre: 'Mike' }, superadmin: true, orgs: [] },
   admina: { usuario: { id: 'u2', correo: 'fer@forespot.com', nombre: 'Fer' }, superadmin: false, orgs: [{ id: 'forespot', rol: 'admin', apps: [] }] },
-  consulta: { usuario: { id: 'u3', correo: 'consulta@forespot.com', nombre: 'Quien Mira' }, superadmin: false, orgs: [{ id: 'forespot', rol: 'staff', apps: ['roster101'] }] },
-  apagada: { usuario: { id: 'u4', correo: 'apagada@forespot.com', nombre: 'Sin Acceso' }, superadmin: false, orgs: [{ id: 'forespot', rol: 'staff', apps: ['roster101'] }] },
-  sin_roster: { usuario: { id: 'u5', correo: 'solo-dash@forespot.com', nombre: 'Sólo Dash' }, superadmin: false, orgs: [{ id: 'forespot', rol: 'socio', apps: ['dash101'] }] },
-  sin_cuenta: { usuario: { id: 'u6', correo: 'nadie@forespot.com', nombre: 'Nadie' }, superadmin: false, orgs: [{ id: 'forespot', rol: 'staff', apps: ['roster101'] }] },
+  // Ojo con la lista de apps: la suite la guarda con llaves cortas (`roster`),
+  // no con el nombre de la app. Fue el error que se coló a producción el
+  // 16-sep y que la lista vacía de Mike y de Fer tapó, porque vacía quiere
+  // decir todas.
+  consulta: { usuario: { id: 'u3', correo: 'consulta@forespot.com', nombre: 'Quien Mira' }, superadmin: false, orgs: [{ id: 'forespot', rol: 'staff', apps: ['roster'] }] },
+  nombre_largo: { usuario: { id: 'u7', correo: 'consulta@forespot.com', nombre: 'Quien Mira' }, superadmin: false, orgs: [{ id: 'forespot', rol: 'staff', apps: ['roster101'] }] },
+  apagada: { usuario: { id: 'u4', correo: 'apagada@forespot.com', nombre: 'Sin Acceso' }, superadmin: false, orgs: [{ id: 'forespot', rol: 'staff', apps: ['roster'] }] },
+  sin_roster: { usuario: { id: 'u5', correo: 'solo-dash@forespot.com', nombre: 'Sólo Dash' }, superadmin: false, orgs: [{ id: 'forespot', rol: 'socio', apps: ['dash'] }] },
+  sin_cuenta: { usuario: { id: 'u6', correo: 'nadie@forespot.com', nombre: 'Nadie' }, superadmin: false, orgs: [{ id: 'forespot', rol: 'staff', apps: ['roster'] }] },
 };
 
 // Las dos cuentas que hay hoy en producción, más dos para los casos de borde.
@@ -113,7 +118,8 @@ console.log('\nQuién entra al panel:');
 for (const [galleta, nivel, quien] of [
   ['duena', 'dueno', 'la dueña de la suite, que además tiene cuenta'],
   ['admina', 'admin', 'quien trae la lista de apps vacía (o sea todas)'],
-  ['consulta', 'consulta', 'quien trae roster101 en su lista'],
+  ['consulta', 'consulta', 'quien trae la llave «roster» en su lista'],
+  ['nombre_largo', 'consulta', 'quien la trae escrita como «roster101»'],
 ]) {
   const r = await pide('/api/admin/yo', comoQuien(galleta));
   const d = await r.json().catch(() => ({}));
@@ -132,7 +138,7 @@ for (const [cabeceras, quien] of [
   [{}, 'sin nada'],
   [{ Cookie: 's101=inventada' }, 'con una galleta que la suite no reconoce'],
   [{ Authorization: 'Bearer inventado' }, 'con un token que la suite no reconoce'],
-  [comoQuien('sin_roster'), 'quien entra a la suite pero no trae roster101 en sus apps'],
+  [comoQuien('sin_roster'), 'quien entra a la suite pero sólo trae «dash» en sus apps'],
   [comoQuien('sin_cuenta'), 'quien entra a la suite pero no tiene cuenta en el panel'],
   [comoQuien('apagada'), 'quien tiene cuenta pero se la apagaron'],
 ]) {
