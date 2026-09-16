@@ -45,6 +45,10 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      # 0101 recorre la pantalla con un navegador de verdad, y el corredor no
+      # trae ninguno instalado. Se baja sólo el motor sin interfaz, que es lo
+      # que pide Playwright y lo más liviano que sirve.
+      - run: npx playwright install --with-deps chromium
       - run: npm run prueba
 
   lista:
