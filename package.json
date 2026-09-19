@@ -1,12 +1,12 @@
 {
   "name": "t101-portal-trabajadores",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "private": true,
   "description": "roster101 — el portal de trabajadores de una empresa: pantalla y cascarón sobre la suite 101",
   "scripts": {
     "deploy": "wrangler deploy",
     "deploy:staging": "wrangler deploy --env staging",
-    "prueba": "node pruebas/0112-cascaron.mjs && node pruebas/0101-avisos-al-cambiar-de-correo.mjs",
+    "prueba": "node pruebas/0112-cascaron.mjs && node pruebas/0101-avisos-al-cambiar-de-correo.mjs && node pruebas/0113-entrada-del-panel.mjs",
     "humo": "node scripts/humo.mjs",
     "medir": "node scripts/medir-puerta.mjs"
   },

@@ -35,17 +35,21 @@ const NIVEL_DICE = { dueno: 'Dueño', admin: 'Administración', consulta: 'Consu
 const json = (cuerpo) => ({ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(cuerpo) });
 
 /* ─────────── la entrada es la de la suite 101 ───────────
-   Desde el 0.12 este panel no tiene contraseña propia. Se escribe el correo,
-   la suite manda un código de 6 dígitos —o se entra con el PIN, o con Google—
-   y desde ahí la sesión es la misma de todas las apps. La puerta del
-   trabajador NO cambia: sigue en la portada, con su correo y su código. */
+   Desde el 0.12 este panel no tiene contraseña propia: la sesión es la misma
+   de todas las apps. Desde el 0.13.1 se entra como en las demás pantallas de
+   la suite (encargo de Mike del 16-sep, que aquí se había quedado atrás): con
+   correo y contraseña, o con Google. El código de 6 dígitos cambió de papel:
+   es cómo se recupera una contraseña olvidada o se pone la primera. El PIN se
+   fue de aquí; la API lo sigue aceptando sólo por el APK viejo de quell101.
+   La puerta del trabajador NO cambia: sigue en la portada, con su correo y su
+   código, sin cuenta en la suite. */
 
 const SUITE = '/s101';
 
 const ERRORES_SUITE = {
   codigo_invalido: 'Ese código no es. Revisa el correo y vuelve a intentar.',
-  pin_invalido: 'Ese PIN no es.',
   clave_invalida: 'Esa contraseña no es.',
+  clave_debil: 'Esa contraseña no pasa: la suite dice por qué.',
   demasiados_intentos: 'Demasiados intentos. Espera un momento y vuelve a intentar.',
   sin_permiso: 'Ese correo no tiene acceso a la suite. Pídeselo a quien administra tu empresa.',
   sin_sesion: 'Tu sesión terminó. Vuelve a entrar.',
@@ -71,83 +75,154 @@ async function suite(ruta, cuerpo) {
   try { d = await r.json(); } catch { /* no vino JSON */ }
   if (!r.ok || !d?.ok) {
     const cual = d?.error ?? 'sin_respuesta';
-    throw Object.assign(new Error(ERRORES_SUITE[cual] ?? `Algo no salió bien (${cual}). Vuelve a intentar.`), { error: cual });
+    throw Object.assign(new Error(ERRORES_SUITE[cual] ?? `Algo no salió bien (${cual}). Vuelve a intentar.`), { error: cual, detalle: d?.detalle });
   }
   return d.data;
 }
 
 let correoSuite = '';
-let modo = 'codigo';   // codigo | pin
 
+function pantallaAcceso(cual) {
+  for (const c of ['#caja-cuenta', '#caja-clave', '#caja-codigo', '#caja-nueva', '#caja-sincuenta']) $(c).classList.add('oculto');
+  $(cual).classList.remove('oculto');
+}
+
+function pintaClave() {
+  $('#clave-ayuda').textContent = `La de tu cuenta, ${correoSuite}.`;
+  $('#clave').value = '';
+  $('#clave-error').textContent = '';
+  $('#clave').focus();
+}
 function pintaCodigo() {
-  const esCodigo = modo === 'codigo';
-  $('#cod-titulo').textContent = esCodigo ? 'Tu código' : 'Tu PIN';
-  $('#cod-ayuda').textContent = esCodigo
-    ? `Te mandamos un código de 6 dígitos a ${correoSuite}. Vence en 10 minutos.`
-    : 'El PIN de seis dígitos que pusiste en la suite.';
-  $('#cod-rotulo').textContent = esCodigo ? 'Código de 6 dígitos' : 'PIN de 6 dígitos';
-  $('#cod-digitos').type = esCodigo ? 'text' : 'password';
-  $('#cod-digitos').setAttribute('autocomplete', esCodigo ? 'one-time-code' : 'current-password');
-  $('#btn-modo').textContent = esCodigo ? 'Entrar con mi PIN' : 'Mándame un código';
+  $('#cod-ayuda').textContent = `Te mandamos un código de 6 dígitos a ${correoSuite}. Vence en 10 minutos.`;
   $('#cod-digitos').value = '';
   $('#cod-error').textContent = '';
   $('#cod-digitos').focus();
 }
-
-function pantallaAcceso(cual) {
-  for (const c of ['#caja-cuenta', '#caja-codigo', '#caja-sincuenta']) $(c).classList.add('oculto');
-  $(cual).classList.remove('oculto');
+function pintaNueva(primera) {
+  $('#nueva-titulo').textContent = primera ? 'Ponle una contraseña' : 'Tu contraseña nueva';
+  $('#nueva-ayuda').textContent = primera
+    ? 'Con ella entras de ahora en adelante, aquí y en las demás apps de la suite.'
+    : 'Tecléala dos veces; la segunda, de memoria.';
+  $('#nueva').value = ''; $('#nueva2').value = '';
+  $('#nueva-error').textContent = '';
+  $('#nueva').focus();
 }
 
-$('#btn-entrar').addEventListener('click', async () => {
+/* El correo. No se pide un código aquí: se pasa a la contraseña. Y NO se le
+   pregunta a la API si esta persona tiene una, porque eso volvería esta
+   pantalla un directorio de quién tiene cuenta. */
+$('#btn-entrar').addEventListener('click', () => {
   $('#acc-error').textContent = '';
   $('#aviso-acceso').innerHTML = '';
-  const email = $('#acc-email').value.trim();
-  if (!email) { $('#acc-error').textContent = 'Escribe tu correo.'; return; }
-  const b = $('#btn-entrar'); b.disabled = true;
-  try {
-    await suite('/auth/codigo', { correo: email });
-    correoSuite = email;
-    modo = 'codigo';
-    pantallaAcceso('#caja-codigo');
-    pintaCodigo();
-  } catch (e) { $('#acc-error').textContent = e.message; }
-  finally { b.disabled = false; }
+  const email = $('#acc-email').value.trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(email)) { $('#acc-error').textContent = 'Escribe un correo válido.'; return; }
+  correoSuite = email;
+  pantallaAcceso('#caja-clave');
+  pintaClave();
 });
 $('#acc-email').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btn-entrar').click(); });
+
+/* La contraseña NO se recorta: un espacio al principio o al final es parte de
+   ella. `sin_permiso` (el correo sin cuenta) y `clave_invalida` (la contraseña
+   equivocada) se dicen IGUAL a propósito: distinguirlos le diría a cualquiera
+   qué correos tienen cuenta aquí. */
+$('#btn-clave').addEventListener('click', async () => {
+  $('#clave-error').textContent = '';
+  const v = $('#clave').value;
+  if (!v) { $('#clave-error').textContent = 'Escribe tu contraseña.'; return; }
+  const b = $('#btn-clave'); b.disabled = true; b.textContent = 'Entrando…';
+  try {
+    await suite('/auth/entrar', { correo: correoSuite, clave: v });
+    await entrarAlPanel();
+  } catch (e) {
+    $('#clave-error').textContent = e.error === 'sin_permiso' || e.error === 'clave_invalida'
+      ? 'Ese correo y esa contraseña no coinciden.'
+      : e.message;
+    $('#clave').value = ''; $('#clave').focus();
+  } finally { b.disabled = false; b.textContent = 'Entrar'; }
+});
+$('#clave').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btn-clave').click(); });
+
+/* «Olvidé mi contraseña», que es la misma puerta para quien nunca tuvo una. */
+async function mandarCodigo(boton, donde) {
+  const b = $(boton); const texto = b.textContent; b.disabled = true; b.textContent = 'Mandando…';
+  $(donde).textContent = '';
+  try {
+    await suite('/auth/codigo', { correo: correoSuite });
+    pantallaAcceso('#caja-codigo');
+    pintaCodigo();
+  } catch (e) { $(donde).textContent = e.message; }
+  finally { b.disabled = false; b.textContent = texto; }
+}
+$('#btn-olvide').addEventListener('click', () => mandarCodigo('#btn-olvide', '#clave-error'));
+$('#btn-reenviar').addEventListener('click', () => mandarCodigo('#btn-reenviar', '#cod-error'));
 
 $('#btn-codigo').addEventListener('click', async () => {
   $('#cod-error').textContent = '';
   const v = $('#cod-digitos').value.replace(/\D/g, '');
-  if (v.length !== 6) { $('#cod-error').textContent = modo === 'codigo' ? 'El código son 6 dígitos.' : 'El PIN son 6 dígitos.'; return; }
-  const b = $('#btn-codigo'); b.disabled = true;
+  if (v.length !== 6) { $('#cod-error').textContent = 'El código son 6 dígitos.'; return; }
+  const b = $('#btn-codigo'); b.disabled = true; b.textContent = 'Entrando…';
   try {
-    await suite('/auth/entrar', modo === 'codigo' ? { correo: correoSuite, codigo: v } : { correo: correoSuite, pin: v });
+    await suite('/auth/entrar', { correo: correoSuite, codigo: v });
     await entrarAlPanel();
-  } catch (e) { $('#cod-error').textContent = e.message; $('#cod-digitos').value = ''; }
-  finally { b.disabled = false; }
+  } catch (e) {
+    let msg = e.message;
+    const quedan = e.detalle?.intentos_restantes;
+    if (e.error === 'codigo_invalido' && typeof quedan === 'number') {
+      msg = quedan > 0 ? `Ese código no es. Te quedan ${quedan} ${quedan === 1 ? 'intento' : 'intentos'}.` : 'Ese código no es y se acabaron los intentos. Pide uno nuevo.';
+    }
+    $('#cod-error').textContent = msg;
+    $('#cod-digitos').value = ''; $('#cod-digitos').focus();
+  } finally { b.disabled = false; b.textContent = 'Continuar'; }
 });
 $('#cod-digitos').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btn-codigo').click(); });
 
-$('#btn-modo').addEventListener('click', async () => {
-  $('#cod-error').textContent = '';
-  if (modo === 'codigo') { modo = 'pin'; pintaCodigo(); return; }
-  const b = $('#btn-modo'); b.disabled = true;
-  try { await suite('/auth/codigo', { correo: correoSuite }); modo = 'codigo'; pintaCodigo(); }
-  catch (e) { $('#cod-error').textContent = e.message; }
-  finally { b.disabled = false; }
+/* La contraseña nueva. Con una sesión abierta por código la suite no pide la
+   anterior: eso es lo que hace que «olvidé» no necesite nada más. */
+$('#btn-nueva').addEventListener('click', async () => {
+  $('#nueva-error').textContent = '';
+  const a = $('#nueva').value, c = $('#nueva2').value;
+  if (a.length < 10) { $('#nueva-error').textContent = 'La contraseña necesita al menos 10 caracteres.'; return; }
+  if (a !== c) {
+    $('#nueva-error').textContent = 'No coincidieron. Vamos otra vez, desde el principio.';
+    $('#nueva').value = ''; $('#nueva2').value = ''; $('#nueva').focus();
+    return;
+  }
+  const b = $('#btn-nueva'); b.disabled = true; b.textContent = 'Guardando…';
+  try {
+    await suite('/auth/clave', { clave: a });
+    await abrirDespuesDeEntrar();
+  } catch (e) {
+    // La suite dice con palabras por qué una contraseña no pasa.
+    $('#nueva-error').textContent = e.detalle?.porque || e.message;
+    $('#nueva').value = ''; $('#nueva2').value = ''; $('#nueva').focus();
+  } finally { b.disabled = false; b.textContent = 'Guardar y entrar'; }
 });
+$('#nueva2').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btn-nueva').click(); });
 
 const otroCorreo = () => { correoSuite = ''; pantallaAcceso('#caja-cuenta'); $('#acc-email').focus(); };
-$('#btn-otro-correo').addEventListener('click', otroCorreo);
-$('#btn-otro-correo-2').addEventListener('click', otroCorreo);
+for (const id of ['#btn-otro-correo', '#btn-otro-correo-2', '#btn-otro-correo-3']) $(id).addEventListener('click', otroCorreo);
 
 $('#btn-google').addEventListener('click', () => {
   location.href = `${SUITE}/auth/google?volver_a=${encodeURIComponent(location.origin + location.pathname)}`;
 });
 
-/** Ya hay sesión de la suite. Falta saber qué es esta persona en el panel. */
+/** Ya hay sesión de la suite. Quien entró con un código y no tiene contraseña
+ *  no puede seguir sin ponerla: el código es de un solo uso y de diez minutos,
+ *  y mañana no tendría por dónde volver. Con Google no se le pide nada. */
 async function entrarAlPanel() {
+  const quien = await suite('/yo').catch(() => null);
+  if (quien && !quien.tiene_clave && quien.entro_con === 'codigo') {
+    pantallaAcceso('#caja-nueva');
+    pintaNueva(true);
+    return;
+  }
+  await abrirDespuesDeEntrar();
+}
+
+/** Falta saber qué es esta persona en el panel. */
+async function abrirDespuesDeEntrar() {
   try {
     await abrir();
   } catch (e) {

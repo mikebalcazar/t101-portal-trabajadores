@@ -46,7 +46,7 @@ AVISO_VERSION = "2026-09-03"
 # Versión del portal. Se ve arriba a la derecha en todas las pantallas; se sube
 # aquí en cada publicación y es la que hay que preguntar cuando alguien reporta
 # una falla, para saber qué estaba usando.
-PORTAL_VERSION = "0.13.0"
+PORTAL_VERSION = "0.13.1"
 
 # ─────────────── staging ───────────────
 # Mismo código, contra la API de staging y la empresa `demo`. Es lo que
@@ -73,4 +73,4 @@ RAZON_SOCIAL = "Empresa Demo SA de CV"
 DOMICILIO = "Domicilio de prueba, Ciudad de México"
 CORREO_PRIVACIDAD = "mike@forespot.com"
 AVISO_VERSION = "2026-09-03"
-PORTAL_VERSION = "0.13.0"
+PORTAL_VERSION = "0.13.1"

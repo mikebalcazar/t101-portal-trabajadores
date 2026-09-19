@@ -51,7 +51,7 @@ rev(salud.estado === 200 && salud.cuerpo?.servicio === 'roster101', 'el portal c
 rev(salud.cuerpo?.datos === 'suite' && salud.cuerpo?.empresa === 'forespot', 'y dice que los datos viven en la suite, en la empresa forespot', `${salud.cuerpo?.datos} ${salud.cuerpo?.empresa}`);
 
 const config = await traer('/api/config');
-rev(config.cuerpo?.version === '0.13.0', 'sirve la versión que se acaba de publicar', String(config.cuerpo?.version));
+rev(config.cuerpo?.version === '0.13.1', 'sirve la versión que se acaba de publicar', String(config.cuerpo?.version));
 
 linea('');
 linea('-- la puerta de la suite --');
