@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Corre el portal en tu computadora para probar cambios antes de publicar.
-set -euo pipefail
-cd "$(dirname "$0")/.."
-[ -d node_modules ] || npm install
-npx wrangler d1 execute t101-trabajadores --local --file=./schema.sql --yes >/dev/null
-echo "Portal en http://localhost:8788   ·   Admin en http://localhost:8788/admin.html (clave: admin123)"
-echo "El código de acceso NO se manda por correo: aparece en la respuesta y en la consola."
-npx wrangler dev --port 8788 --local --var MODO_PRUEBA:1 --var SECRETO:pruebalocal123 --var CLAVE_ADMIN:admin123
+# El portal ya no corre solo en tu computadora: desde el 19-sep no tiene base
+# propia, y su puerta es la suite 101, que llega por un *service binding* que
+# sólo existe en Cloudflare. Para probar cambios de pantalla está
+# pruebas/0101 (sirve public/ y simula /api/*); para probar el portal entero
+# está staging: https://t101-portal-staging.mike-929.workers.dev (empresa demo,
+# el código de acceso sale en la respuesta).
+echo "roster101 no corre en local desde el 19-sep: usa staging (t101-portal-staging) o npm run prueba."
+exit 1

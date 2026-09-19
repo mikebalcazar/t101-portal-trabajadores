@@ -62,8 +62,8 @@ Expedientes Taller 101 2026-09-01.zip
 - El dueño de la suite entra siempre al panel, y entra como dueño. Es lo que arranca un panel recién puesto —antes lo hacía una clave compartida— y la salida si el último dueño se queda fuera.
 - Sesión firmada con HMAC-SHA256 en cookie `HttpOnly` + `Secure` + `SameSite`.
 - Un trabajador solo puede ver sus propios documentos (probado: da 403 con el documento de otro).
-- Los documentos viven en R2 con llaves impredecibles y **solo se sirven a través del Worker**, nunca por URL pública.
-- Bitácora de accesos, altas, subidas y exportaciones en la tabla `bitacora`.
+- Los documentos viven en el bucket de la suite con llaves impredecibles y **solo se sirven a través de la suite**, nunca por URL pública.
+- Bitácora de accesos, altas, subidas y exportaciones en la tabla `roster_bitacora` de la base de la empresa.
 - `robots.txt` bloquea buscadores.
 
 > **Nota sobre el acceso que pediste** (apellido paterno + NSS): quedó descartado a
@@ -71,45 +71,53 @@ Expedientes Taller 101 2026-09-01.zip
 > viera podría abrir el expediente y leer la CLABE y la INE de esa persona. El código
 > al correo es más seguro y además no hay contraseña que se les olvide.
 
-## 4. Publicar
+## 4. Dónde viven los datos (desde el 19-sep-2026)
 
-```bash
-bash scripts/desplegar.sh
+**En la suite 101.** Mike decidió que todo lo de una empresa viva en su base de
+la suite: los expedientes, los documentos, la bitácora, la papelera y las
+cuentas del panel están en la base por empresa de `suite101-api` (migración
+0007, tablas `roster_*`), y los documentos en el bucket de la suite bajo
+`orgs/{empresa}/roster/`. El motor —el mismo código que corría aquí, con sus
+mismas reglas— corre dentro de la API, en `/roster/{empresa}/api/*`.
+
+Este Worker es el **cascarón** de una empresa: sirve la pantalla y reenvía
+`/api/*` a la suite con la empresa de su `wrangler.toml` (`ORG_ID`) y sus
+datos (nombre, razón social, domicilio, correos, versión del aviso) en la
+cabecera `X-Roster`. Las dos puertas siguen siendo dos: el trabajador entra con
+su correo y un código (su cookie la firma ahora la suite); el panel entra con la
+cuenta de la suite. El dueño y la administración de la empresa abren el panel
+como dueños aunque nadie los haya dado de alta en él todavía.
+
+La central de roster101 (registro de empresas, panel maestro) **se retiró**: el
+alta de una empresa se hace en master101, prendiéndole roster101, y se le agrega
+su archivo en `clientes/` (ver `clientes/_plantilla.toml`). Un Worker por
+empresa, como siempre.
+
+## 5. Publicar y probar
+
+Cada empujón a `main` publica solo: pruebas → staging (empresa demo, contra la
+API de staging) → humo en staging (entra y escribe de verdad) → producción, un
+Worker por empresa → medición de la puerta de Taller 101 desde afuera. Único
+secreto del repositorio: `CLOUDFLARE_API_TOKEN`.
+
+El portal ya no corre en local (su puerta es la suite, por un *service binding*
+que sólo existe en Cloudflare). Para probar cambios:
+
+```
+npm run prueba      # el cascarón con una suite de mentiras, y la pantalla con un navegador
 ```
 
-El script hace todo: instala dependencias, crea la base D1, crea el bucket R2,
-aplica el esquema, genera el secreto de sesiones, pide la clave de administración
-y la llave de Resend, y publica. Se puede correr las veces que quieras.
-
-Después, en el panel de Cloudflare:
-**Workers & Pages → t101-portal → Settings → Domains & Routes → Add custom domain
-→ `trabajadores.taller101.mx`**
-
-Y en **resend.com → Domains**, agrega `taller101.mx` y captura los registros
-SPF/DKIM que te dé en el DNS. Sin ese paso los correos no salen.
-
-## 5. Probar en tu computadora
-
-```bash
-bash scripts/local.sh
-```
-
-Abre `http://localhost:8788`. El código de acceso del trabajador **no** se manda
-por correo: sale en la respuesta y en la consola. El panel no abre en local: su
-puerta es la suite 101 y llega por un *service binding* que sólo existe en
-Cloudflare. Lo que decide quién entra al panel se prueba sin levantar nada:
-
-```
-npm run prueba
-```
+y para probar el portal entero, staging:
+https://t101-portal-staging.mike-929.workers.dev (el código de acceso sale en
+la respuesta, no por correo).
 
 ## 6. Costo
 
 | Servicio | Capa gratis | Cuándo se cobraría |
 |---|---|---|
 | Cloudflare Workers | 100,000 peticiones/día | Nunca, con este uso |
-| Cloudflare D1 | 5 GB y 5 M lecturas/día | Nunca (los datos son texto) |
-| Cloudflare R2 | 10 GB, 1 M escrituras y 10 M lecturas al mes, sin costo de salida | Arriba de 10 GB: ~$0.015 USD por GB al mes |
+| Base de la suite (Durable Object) | 5 GB por empresa | Nunca, con este uso |
+| Cloudflare R2 (el bucket de la suite) | 10 GB, 1 M escrituras y 10 M lecturas al mes, sin costo de salida | Arriba de 10 GB: ~$0.015 USD por GB al mes |
 | Resend | 3,000 correos/mes (100/día) | Arriba de eso: $20 USD/mes |
 
 Con ~8 documentos de 2 MB por persona, **10 GB alcanzan para unos 600 trabajadores**.
@@ -119,15 +127,15 @@ La capa gratis de Cloudflare no vence ni se pausa por inactividad.
 ## 7. Estructura
 
 ```
-src/index.js      rutas del API (Worker)
-src/lib.js        firmas HMAC, cookies, utilidades
-src/validar.js    CLABE, CURP, NSS, reglas del expediente
-src/correo.js     plantillas y envío por Resend
-src/exportar.js   armado del ZIP y del CSV
-public/           portal del trabajador y panel de admin
-schema.sql        tablas de D1
-scripts/          desplegar.sh y local.sh
+src/index.js      el cascarón: /s101/* y /api/* a la suite, /api/salud y /api/config aquí
+public/           portal del trabajador y panel de la empresa
+clientes/         un archivo por empresa (Worker por empresa); _plantilla.toml es el molde
+scripts/          humo.mjs (staging), medir-puerta.mjs (producción, sólo mira), clientes.mjs
+pruebas/          0112 el cascarón, 0101 la pantalla en un teléfono
 ```
+
+El motor (rutas, validaciones, correos, fichas, exportación, cuentas) vive en
+`suite101-api/src/roster/`, con sus pruebas (`pruebas/roster.spec.ts`).
 
 ## 8. Si después quieres WhatsApp
 

@@ -4,6 +4,7 @@ Cada renglón es una versión publicada. La más reciente hasta arriba.
 
 | Fecha | Versión | Qué cambió |
 |---|---|---|
+| 2026-09-19 | 0.13.0 | **roster101 vive en la base de la empresa, dentro de la suite.** Mike decidió que todo lo de una empresa viva en su base de la suite 101. El motor de los expedientes —el mismo código, con sus mismas reglas— se movió a `suite101-api` (migración 0007, tablas `roster_*`; los documentos al bucket de la suite bajo `orgs/{empresa}/roster/`), y este Worker quedó como cascarón: sirve la pantalla y reenvía `/api/*` a `/roster/{empresa}/api/*` con la empresa de su `wrangler.toml` y sus datos en la cabecera `X-Roster`. Las dos puertas siguen siendo dos: el trabajador entra con su correo y un código (su cookie la firma ahora la suite), el panel con la cuenta de la suite; el dueño y la administración de la empresa abren el panel como dueños sin renglón. **La central se retiró** (cero empresas): el alta va por master101 y un archivo en `clientes/`. Un Worker por empresa, como siempre. Ya no hay base, bucket, secretos ni reloj en este repositorio; la papelera se vacía al abrir el panel. Hay **staging** (`t101-portal-staging`, empresa demo) y un humo que entra y escribe ahí antes de publicar producción. La mudanza de los datos de Taller 101 se corre desde master101 (contar en seco, traer de verdad); la base y el bucket viejos se quedan sin tocar como red de seguridad. |
 | 2026-09-15 | 0.11.1 | **«Olvidé la clave compartida», para el arranque.** Con el 0.11.0, si la clave compartida de siempre no abría, no había manera de llegar a crear la primera cuenta: el «olvidé» nuevo pedía el correo de una cuenta que todavía no existía. Ahora, mientras el panel no tenga cuentas, en la pantalla del arranque hay «Olvidé la clave compartida»: llega un código al correo configurado de la empresa y con él se pone una clave compartida nueva, que sirve para entrar a crear la cuenta de dueño. En cuanto hay cuentas, ese botón y ese camino desaparecen. |
 | 2026-09-15 | 0.11.0 | **Cada persona entra al panel con su correo y su contraseña.** Se acabó la clave compartida: ya no se le puede quitar el acceso a alguien sin cambiársela a todos, y —lo que importa— cuando alguien exporta el ZIP con las CLABE, CURP e INE de la plantilla, la bitácora dice **quién** fue, con su correo, y no «admin». Hay tres niveles: **dueño** (todo, y maneja las cuentas), **administración** (ve, captura, exporta y da de baja) y **consulta** (solo ve expedientes y saca fichas; ni siquiera se le pintan los botones de exportar ni de baja). Al dar de alta a alguien se le pone una contraseña provisional que el panel le obliga a cambiar al entrar, para que nadie más se la sepa; lo mismo cuando el dueño le repone la contraseña a otro. «Olvidé mi contraseña» sigue mandando el código al correo configurado de la empresa. Candados: el último dueño no se borra, no se apaga ni se baja de nivel, y nadie se apaga a sí mismo. La contraseña pide 10 caracteres, sin exigir mayúscula ni símbolo, y rechaza las obvias y las que llevan el usuario del correo. **Cómo se estrena:** la clave compartida de siempre sigue abriendo hasta que se cree la primera cuenta —que es de dueño—; en ese momento deja de valer. Se apunta también quién creó, apagó, borró o repuso cada cuenta. |
 | 2026-09-12 | 0.10.1 | **El aviso rojo ya no se queda pegado.** Si alguien escribía mal su código y luego picaba «Usar otro correo», el «El código no es correcto» seguía ahí al pedir uno nuevo: parecía haber fallado sin escribir nada. Ahora los dos avisos se borran al volver al paso del correo. De paso, el campo del correo abre el teclado del celular con la tecla «enviar» y deja de corregir mayúsculas y ortografía, que en un correo estorban. |
@@ -70,44 +71,23 @@ cuando lo que se viene a ver es a quién se le mandó su código.
 
 ## Cómo se publica ahora
 
-**Ya no hace falta ninguna computadora.** Cada cambio que llegue a la rama `main` del
-repositorio publica solo: instala, aplica el esquema a la base, despliega el Worker,
-actualiza los secretos y comprueba que el portal responda.
+**Ya no hace falta ninguna computadora.** Cada cambio que llegue a la rama `main`
+publica solo: pruebas, staging, humo en staging, producción (un Worker por
+empresa) y medición de la puerta desde afuera.
 
 | | |
 |---|---|
-| Repositorio | https://github.com/mikebalcazar/t101-portal-trabajadores (privado) |
+| Repositorio | https://github.com/mikebalcazar/t101-portal-trabajadores |
 | **1** · Portal del trabajador (Taller 101) | https://t101-portal.mike-929.workers.dev |
-| **2** · Panel de la empresa (Taller 101) | https://t101-portal.mike-929.workers.dev/admin |
-| **3** · Panel maestro | https://roster101-central.mike-929.workers.dev/roster |
-| Registro de empresa (la liga que se les manda) | https://roster101-central.mike-929.workers.dev |
-| Clave del panel de la empresa | En la base de su Worker, hasheada. Se cambia desde el propio panel; si se olvida, **Olvidé la clave** manda un código al correo de avisos. **No existe en el repositorio.** |
-| Clave del panel maestro | Se generó en la instalación y se mandó por correo. **No existe en el repositorio:** vive nada más en el Worker. |
-| Correos | Resend, desde `expedientes@envios.taller101.mx` |
+| **2** · Panel de la empresa (Taller 101) | https://t101-portal.mike-929.workers.dev/admin.html |
+| Staging (empresa demo) | https://t101-portal-staging.mike-929.workers.dev |
+| **3** · Alta y mudanza de empresas | master101 (la central de roster101 se retiró el 19-sep) |
+| Datos | En la base de la empresa dentro de la suite 101; documentos en el bucket de la suite |
+| Correos | Los manda la suite por Resend, desde el remitente del `wrangler.toml` de cada empresa |
 
-Cada empujón a `main` publica los dos: el Worker de cada cliente y el central.
-
-Para subir cambios desde esta computadora: doble clic en `SUBIR-A-GITHUB.bat`.
-Para publicar sin pasar por GitHub (respaldo): `PUBLICAR.bat`.
-
-Los cuatro secretos viven en el repositorio, en Settings → Secrets and variables →
-Actions: `CLOUDFLARE_API_TOKEN`, `CLAVE_ADMIN`, `RESEND_API_KEY` y `SECRETO`.
-Los valores están también en `llaves.env`, que nunca se sube al repositorio.
-
-**Ojo:** el `SECRETO` que quedó en GitHub es nuevo, distinto al que tenía el Worker
-antes. Firma las sesiones, así que quien tuviera una sesión abierta tiene que volver
-a entrar con su correo. Molesto una vez, nada más.
-
-**Un chat a la vez.** Antes de trabajar, el chat escribe `claude/EN-CURSO.md`
-(qué hace, desde cuándo, qué chat) y lo borra al terminar. Si otro chat lo
-encuentra con menos de dos horas, se detiene y avisa. Cambios solo a `claude/`,
-`BITACORA.md` o `README.md` no publican nada.
-
-## Verificado en producción el 2026-09-02
-
-- Corrida de GitHub Actions en verde, 56 segundos.
-- El portal responde y trae las cuatro cosas: identificación en dos fotos, aviso de
-  privacidad, guardado automático y cámara a pantalla completa.
+El único secreto del repositorio es `CLOUDFLARE_API_TOKEN` (Settings → Secrets
+and variables → Actions). `SECRETO`, `RESEND_API_KEY` y `CLAVE_ADMIN` ya no se
+usan aquí.
 
 ## Un cliente nuevo
 

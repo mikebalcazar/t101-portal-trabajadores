@@ -4,10 +4,10 @@
  * corredor de GitHub sí. Por eso esto corre allá y lo que mide vuelve por el
  * comentario del commit (OPERAR §6).
  *
- * roster101 no tiene staging y su base es la de la empresa de verdad, así que
- * aquí NO se entra y NO se escribe: todo lo que se mide se mide desde afuera de
- * la puerta, y lo que se comprueba es que la puerta esté donde debe y diga que
- * no cuando toca.
+ * Es producción, con los expedientes de verdad, así que aquí NO se entra y NO
+ * se escribe: todo lo que se mide se mide desde afuera de la puerta, y lo que
+ * se comprueba es que la puerta esté donde debe y diga que no cuando toca.
+ * Entrar y escribir se hace en staging (scripts/humo.mjs), antes de publicar.
  *
  *     PORTAL=https://… node scripts/medir-puerta.mjs
  */
@@ -48,9 +48,10 @@ linea(`== ${PORTAL} ==`);
 
 const salud = await traer('/api/salud');
 rev(salud.estado === 200 && salud.cuerpo?.servicio === 'roster101', 'el portal contesta y se nombra', `${salud.estado} ${salud.cuerpo?.servicio ?? ''}`);
+rev(salud.cuerpo?.datos === 'suite' && salud.cuerpo?.empresa === 'forespot', 'y dice que los datos viven en la suite, en la empresa forespot', `${salud.cuerpo?.datos} ${salud.cuerpo?.empresa}`);
 
 const config = await traer('/api/config');
-rev(config.cuerpo?.version === '0.12.0', 'sirve la versión que se acaba de publicar', String(config.cuerpo?.version));
+rev(config.cuerpo?.version === '0.13.0', 'sirve la versión que se acaba de publicar', String(config.cuerpo?.version));
 
 linea('');
 linea('-- la puerta de la suite --');
@@ -96,7 +97,9 @@ linea('-- la puerta del trabajador NO cambió --');
 const portada = await traer('/');
 rev(portada.estado === 200, 'la portada del trabajador contesta', String(portada.estado));
 const entrar = await traer('/api/entrar', { method: 'POST', body: { email: 'nadie@ejemplo.mx', codigo: '000000' } });
-rev(entrar.estado === 401, 'y su puerta sigue ahí, pidiendo un código de verdad', String(entrar.estado));
+rev(entrar.estado === 401, 'y su puerta sigue ahí, pidiendo un código de verdad (la contesta la suite)', String(entrar.estado));
+const yoT = await traer('/api/yo', { cabeceras: { Cookie: 't101_sesion=inventada.firmaQueNoEs' } });
+rev(yoT.estado === 401, 'una cookie de trabajador inventada no abre nada', String(yoT.estado));
 
 linea('');
 linea(`${revisadas} revisadas · ${fallas} fallas`);

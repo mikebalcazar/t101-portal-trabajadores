@@ -1,18 +1,21 @@
-# Publica roster101 en Cloudflare cada vez que cambia el codigo.
+# Publica roster101 en Cloudflare cada vez que cambia el código.
 #
-# Cada cliente tiene su propio Worker, su propia base D1 y su propio bucket R2.
-# La lista sale de los archivos de la carpeta clientes/ mas el wrangler.toml de
-# la raiz, que es el de Taller 101. Un cliente se da de alta con el flujo
-# "Alta de cliente"; de ahi en adelante se publica solo, junto con los demas.
+# Cada empresa tiene su propio Worker (Mike, 19-sep: un Worker por empresa,
+# como siempre); sus datos viven en SU base de la suite, así que aquí ya no se
+# crea ninguna base ni ningún bucket ni se pone ningún secreto. La lista sale de
+# los archivos de la carpeta clientes/ más el wrangler.toml de la raíz, que es
+# el de Taller 101. Una empresa se da de alta en master101 y se le agrega su
+# archivo en clientes/ (ver clientes/_plantilla.toml).
 #
-# Secretos del repositorio (Settings -> Secrets and variables -> Actions):
-#   CLOUDFLARE_API_TOKEN   token con Workers Scripts:Edit, Workers R2 Storage:Edit,
-#                          D1:Edit, Account Settings:Read, User Details:Read
-#   RESEND_API_KEY         llave de envio de correos, la misma para todos
-#   SECRETO                la firma de sesiones de Taller 101. Los demas clientes
-#                          tienen la suya, puesta en su alta.
-# La clave de cada panel NO esta aqui: vive hasheada en la base de su Worker y se
-# cambia desde el propio panel.
+# Orden: pruebas → staging (empresa demo, contra la API de staging) → humo en
+# staging (entrar y escribir de verdad) → producción, un Worker por empresa →
+# medición de la puerta de Taller 101 desde afuera → verificación.
+#
+# Secreto del repositorio (Settings -> Secrets and variables -> Actions):
+#   CLOUDFLARE_API_TOKEN   token con Workers Scripts:Edit, Account Settings:Read,
+#                          User Details:Read
+# RESEND_API_KEY y SECRETO ya no se usan aquí: el correo lo manda la suite y la
+# cookie del trabajador la firma la suite.
 name: Publicar portal
 
 on:
@@ -20,11 +23,7 @@ on:
     branches: [main]
     paths-ignore:
       - 'claude/**'
-      - 'BITACORA.md'
-      - 'README.md'
-      # Se agregó el 12-sep en los once repositorios y se colaba por esta
-      # lista, que nombra archivos uno por uno en vez de usar `**.md`.
-      - 'CLAUDE.md'
+      - '**.md'
   workflow_dispatch:
 
 concurrency:
@@ -32,10 +31,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # La puerta, en una mesa de trabajo: con una suite de mentiras y cuatro
-  # renglones de base se comprueba quién entra al panel y —sobre todo— quién
-  # no. Corre antes de publicar: un despliegue no enseña esto hasta que ya es
-  # tarde.
+  # El cascarón, en una mesa de trabajo: con una suite de mentiras se comprueba
+  # que reenvíe bien (ruta, empresa, cookies, datos de la empresa, cuerpo); y la
+  # pantalla, con un navegador de verdad. Corre antes de publicar.
   pruebas:
     runs-on: ubuntu-latest
     steps:
@@ -45,14 +43,41 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      # 0101 recorre la pantalla con un navegador de verdad, y el corredor no
-      # trae ninguno instalado. Se baja sólo el motor sin interfaz, que es lo
-      # que pide Playwright y lo más liviano que sirve.
       - run: npx playwright install --with-deps chromium
       - run: npm run prueba
 
-  lista:
+  # Primero staging: mismo código, contra la API de staging y la empresa demo.
+  # Ahí se entra y se escribe de verdad (el humo). Si eso no pasa, producción
+  # no se toca.
+  staging:
     needs: pruebas
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Publicar staging
+        id: publicar
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --env staging | tee /tmp/staging.txt
+          liga=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' /tmp/staging.txt | head -1)
+          if [ -z "$liga" ]; then echo 'No pude sacar la liga de staging.' >&2; exit 1; fi
+          echo "liga=$liga" >> "$GITHUB_OUTPUT"
+      - name: Humo en staging (panel, trabajador, papelera)
+        env:
+          PORTAL: ${{ steps.publicar.outputs.liga }}
+        run: |
+          sleep 12
+          node scripts/humo.mjs
+
+  lista:
+    needs: staging
     runs-on: ubuntu-latest
     outputs:
       clientes: ${{ steps.armar.outputs.clientes }}
@@ -64,131 +89,37 @@ jobs:
           echo "clientes=$(node scripts/clientes.mjs)" >> "$GITHUB_OUTPUT"
           node scripts/clientes.mjs --tabla
 
-  # roster101 central: el mostrador de entrada. Se publica junto con los
-  # clientes, pero solo cuando ya esta instalado —mientras su base no exista,
-  # este trabajo se salta solo en vez de fallar en rojo.
-  central:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - id: revisar
-        run: |
-          set -euo pipefail
-          if grep -q 'PENDIENTE-CREAR-LA-BASE' central/wrangler.toml; then
-            echo 'instalado=no' >> "$GITHUB_OUTPUT"
-            echo 'roster101 central todavia no esta instalado: correr el flujo "Instalar roster101 central".'
-          else
-            echo 'instalado=si' >> "$GITHUB_OUTPUT"
-          fi
-      - uses: actions/setup-node@v4
-        if: steps.revisar.outputs.instalado == 'si'
-        with:
-          node-version: '22'
-          cache: npm
-      - name: Instalar dependencias
-        if: steps.revisar.outputs.instalado == 'si'
-        run: npm ci
-      - name: Aplicar el esquema
-        if: steps.revisar.outputs.instalado == 'si'
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: npx wrangler d1 execute roster101-central --remote --file=./central/schema.sql --yes -c central/wrangler.toml
-      - name: Publicar
-        if: steps.revisar.outputs.instalado == 'si'
-        id: publicar
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          set -euo pipefail
-          npx wrangler deploy -c central/wrangler.toml | tee /tmp/central.txt
-          liga=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' /tmp/central.txt | head -1)
-          if [ -z "$liga" ]; then echo 'No pude sacar la liga.' >&2; exit 1; fi
-          echo "liga=$liga" >> "$GITHUB_OUTPUT"
-      - name: Actualizar la llave de correo
-        if: steps.revisar.outputs.instalado == 'si'
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-        run: printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY -c central/wrangler.toml
-      - name: Revisar que responda
-        if: steps.revisar.outputs.instalado == 'si'
-        run: |
-          set -euo pipefail
-          sleep 12
-          curl -fsS "${{ steps.publicar.outputs.liga }}/api/salud"
-
   publicar:
     needs: lista
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false          # que un cliente con problema no tumbe a los demas
+      fail-fast: false          # que una empresa con problema no tumbe a las demás
       matrix:
         cliente: ${{ fromJson(needs.lista.outputs.clientes) }}
     name: ${{ matrix.cliente.slug }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-
       - name: Instalar dependencias
         run: npm ci
 
-      - name: Aplicar el esquema de la base
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: npx wrangler d1 execute "${{ matrix.cliente.base }}" --remote --file=./schema.sql --yes -c "${{ matrix.cliente.config }}"
-
-      # Lo que schema.sql no puede hacer: agregarle columnas a una tabla que ya
-      # existe. D1 lleva la cuenta de cuales ya corrieron, asi que esto se puede
-      # repetir en cada despliegue sin que pase nada.
-      - name: Aplicar los cambios a la base
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: npx wrangler d1 migrations apply "${{ matrix.cliente.base }}" --remote -c "${{ matrix.cliente.config }}"
-
       - name: Publicar
         id: publicar
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           set -euo pipefail
           npx wrangler deploy -c "${{ matrix.cliente.config }}" | tee /tmp/salida.txt
-          # La liga la dice el propio wrangler: asi no hay que traer de ningun
-          # lado el subdominio de la cuenta.
           liga=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' /tmp/salida.txt | head -1)
           if [ -z "$liga" ]; then echo 'No pude sacar la liga del portal de la salida de wrangler.' >&2; exit 1; fi
           echo "liga=$liga" >> "$GITHUB_OUTPUT"
           echo "Publicado en $liga"
 
-      # La llave de correo es de roster101 y es la misma para todos: se vuelve a
-      # mandar en cada despliegue para que rotarla sea cambiar el secreto y
-      # volver a publicar. Los otros dos secretos son de cada cliente y se
-      # ponen en su alta; aqui solo se refrescan los de Taller 101.
-      - name: Actualizar la llave de correo
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-        run: printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY -c "${{ matrix.cliente.config }}"
-
-      # La clave del panel ya no se pone desde aqui: vive nada mas en la base del
-      # Worker, hasheada, y se cambia desde el propio panel. CLAVE_ADMIN solo
-      # servia para la primera entrada y ya no se toca, para no revivirla cada
-      # despliegue encima de la que el cliente haya puesto.
-      - name: Actualizar los secretos de Taller 101
-        if: ${{ matrix.cliente.raiz }}
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          SECRETO: ${{ secrets.SECRETO }}
-        run: |
-          set -euo pipefail
-          printf '%s' "$SECRETO" | npx wrangler secret put SECRETO -c "${{ matrix.cliente.config }}"
-
-      # La puerta de la suite, medida desde afuera. Sólo en el portal de Taller
-      # 101: es el único que hoy tiene gente de verdad, y aquí no se entra ni se
-      # escribe.
+      # La puerta, medida desde afuera. Sólo en el portal de Taller 101: es el
+      # que tiene gente de verdad, y aquí no se entra ni se escribe.
       - name: Medir la puerta del panel
         id: medir
         if: ${{ matrix.cliente.raiz }}
@@ -225,11 +156,6 @@ jobs:
           sleep 12
           curl -fsS "${{ steps.publicar.outputs.liga }}/api/salud"
           echo
-          # Que PBKDF2 corra de verdad con las vueltas de hoy. El tope del
-          # runtime tuvo la clave del panel rota desde el 7-sep y esto salia
-          # verde igual, porque nada la ejercitaba. El central no lo necesita:
-          # no deriva ninguna clave.
-          curl -fsS "${{ steps.publicar.outputs.liga }}/api/salud/cripto"
 
   # El chat no alcanza producción; el corredor sí. Deja los números medidos
   # como comentario del commit, que es lo único que el chat puede leer.
@@ -238,4 +164,4 @@ jobs:
     uses: ./.github/workflows/verificar.yml
     with:
       url: https://t101-portal.mike-929.workers.dev
-
+      rutas: /api/salud

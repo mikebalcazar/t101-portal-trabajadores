@@ -1,10 +1,16 @@
 # Plantilla de cliente de roster101.
 #
-# Cada cliente tiene su propio Worker, su propia base D1 y su propio bucket R2:
-# los datos de una empresa no se cruzan con los de otra ni por descuido de una
-# consulta. Este archivo es todo lo que define a un cliente; lo genera solo el
-# flujo "Alta de cliente" de GitHub Actions, y de ahí en adelante el despliegue
-# lo publica junto con los demás.
+# Cada empresa tiene su propio Worker (Mike, 19-sep: un Worker por empresa,
+# como siempre). Sus datos viven en SU base de la suite: este archivo sólo dice
+# qué empresa de la suite es (ORG_ID) y cómo se llama en lo que ve su gente.
+#
+# Cómo se da de alta una empresa desde el 19-sep (la central se retiró):
+#   1. En master101: alta de la empresa, con roster101 prendida entre sus apps.
+#   2. Copiar este archivo a clientes/<nombre-corto>.toml con su ORG_ID y sus
+#      datos, y mandarlo a main: el despliegue publica su Worker junto con los
+#      demás. No hay base ni bucket que crear, ni secretos que poner.
+#   3. El dueño o la administración de la empresa abre /admin.html con su cuenta
+#      de la suite: entra como dueño del panel y da de alta a su gente.
 #
 # Las rutas son relativas a esta carpeta: el código vive un nivel arriba.
 name = "roster101-PLANTILLA"
@@ -15,30 +21,21 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = "../public"
 binding = "ASSETS"
-# `/s101/*` tiene que llegar al Worker: es la puerta a la suite, no un archivo.
 run_worker_first = ["/api/*", "/s101/*"]
 
-[[d1_databases]]
-binding = "DB"
-database_name = "roster101-PLANTILLA"
-database_id = "PONER-EL-ID-QUE-DEVUELVE-D1-CREATE"
-migrations_dir = "../migrations"
-
-[[r2_buckets]]
-binding = "DOCS"
-bucket_name = "roster101-PLANTILLA-docs"
-
-# La suite, desde el mismo origen. Es por donde entra el panel de este cliente:
-# su gente de administración usa su cuenta de la suite 101, no una contraseña
-# guardada aquí.
+# La suite, desde el mismo origen. Es por donde entra todo: el panel con su
+# cuenta de la suite y el trabajador con su correo y su código.
 [[services]]
 binding = "API"
 service = "suite101-api"
 
+[vars]
+# El id de la empresa en la suite (el mismo que en master101).
+ORG_ID = "nombre-corto-de-la-empresa"
+
 # De aquí sale el nombre de la empresa en todo lo que ve su gente: el aviso de
 # privacidad, los correos, los archivos que se descargan y el documento bancario
 # que se firma.
-[vars]
 EMPRESA = "Nombre corto de la empresa"
 RAZON_SOCIAL = "Razón social completa"
 DOMICILIO = "Domicilio fiscal completo"
@@ -46,8 +43,4 @@ CORREO_PRIVACIDAD = "privacidad@empresa.mx"
 CORREO_REMITENTE = "Nombre corto <expedientes@envios.taller101.mx>"
 CORREO_AVISOS = "quien-recibe-los-avisos@empresa.mx"
 AVISO_VERSION = "2026-09-03"
-PORTAL_VERSION = "0.12.0"
-
-# Barrido diario de la papelera, 4:00 UTC.
-[triggers]
-crons = ["0 4 * * *"]
+PORTAL_VERSION = "0.13.0"

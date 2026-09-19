@@ -10,26 +10,24 @@ binding = "ASSETS"
 # llegar al Worker: es la puerta a la suite, no un archivo de `public/`.
 run_worker_first = ["/api/*", "/s101/*"]
 
-[[d1_databases]]
-binding = "DB"
-database_name = "t101-trabajadores"
-database_id = "64afff63-bbb7-424d-8d25-1d440af2b840"
-# Los cambios a la base (columnas nuevas) van en migrations/, uno por archivo.
-# schema.sql solo sirve para crear lo que no existe todavía.
-migrations_dir = "migrations"
-
-[[r2_buckets]]
-binding = "DOCS"
-bucket_name = "t101-documentos"
+# DESDE EL 19-SEP-2026 AQUÍ NO HAY D1 NI R2. La base `t101-trabajadores` y el
+# bucket `t101-documentos` se quedaron en Cloudflare, sin tocar, como red de
+# seguridad de la mudanza; se borran cuando lleven unos días de más. Sus datos
+# están en la base por empresa de la suite (migración 0007, prefijo `roster_`)
+# y los documentos en el bucket de la suite, bajo orgs/{empresa}/roster/.
 
 # La suite, desde el mismo origen. No hay URL: es un *service binding*, o sea
-# una llamada de Worker a Worker que nunca sale a internet. Todo `/s101/*` va a
-# dar ahí con `X-App: roster101` puesto por el Worker.
+# una llamada de Worker a Worker que nunca sale a internet. Todo `/s101/*` y
+# `/api/*` va a dar ahí con `X-App: roster101` puesto por el Worker.
 [[services]]
 binding = "API"
 service = "suite101-api"
 
 [vars]
+# La empresa de la suite a la que pertenece este portal. Es lo único que dice
+# de quién son los expedientes: la suite guarda en la base de ESA empresa.
+ORG_ID = "forespot"
+
 EMPRESA = "Taller 101"
 CORREO_REMITENTE = "Taller 101 <expedientes@envios.taller101.mx>"
 CORREO_AVISOS = "mike@forespot.com"
@@ -37,8 +35,9 @@ CORREO_AVISOS = "mike@forespot.com"
 # La empresa que está usando roster101. De aquí sale su nombre en TODAS partes:
 # el aviso de privacidad, los correos que reciben sus trabajadores, los nombres
 # de los archivos que se descargan, la ficha en PDF y el documento bancario que
-# se firma. Montarle el portal a otro cliente es cambiar estas líneas, crear su
-# base D1 y su bucket R2, y publicar con el token de Cloudflare de ese cliente.
+# se firma. Viajan a la suite en cada petición (cabecera X-Roster). Montarle el
+# portal a otra empresa es darla de alta en master101 con roster101 prendida y
+# copiar clientes/_plantilla.toml con su ORG_ID y estas líneas.
 RAZON_SOCIAL = "Taller 101"
 DOMICILIO = "5 de Mayo 60, San Nicolás Totolapan, La Magdalena Contreras, C.P. 10900, Ciudad de México"
 CORREO_PRIVACIDAD = "mike@forespot.com"
@@ -47,9 +46,31 @@ AVISO_VERSION = "2026-09-03"
 # Versión del portal. Se ve arriba a la derecha en todas las pantallas; se sube
 # aquí en cada publicación y es la que hay que preguntar cuando alguien reporta
 # una falla, para saber qué estaba usando.
-PORTAL_VERSION = "0.12.0"
+PORTAL_VERSION = "0.13.0"
 
-# Barrido diario de la papelera: a las 4:00 UTC (10 u 11 de la noche en el centro
-# de México, según el horario). Borra de verdad lo que ya cumplió 30 días.
-[triggers]
-crons = ["0 4 * * *"]
+# ─────────────── staging ───────────────
+# Mismo código, contra la API de staging y la empresa `demo`. Es lo que
+# roster101 no tenía: un lugar donde entrar y escribir sin tocar los
+# expedientes de verdad. Ahí la API devuelve el código en la respuesta.
+[env.staging]
+name = "t101-portal-staging"
+
+[env.staging.assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*", "/s101/*"]
+
+[[env.staging.services]]
+binding = "API"
+service = "suite101-api-staging"
+
+[env.staging.vars]
+ORG_ID = "demo"
+EMPRESA = "Empresa demo"
+CORREO_REMITENTE = "Empresa demo <expedientes@envios.taller101.mx>"
+CORREO_AVISOS = "mike@forespot.com"
+RAZON_SOCIAL = "Empresa Demo SA de CV"
+DOMICILIO = "Domicilio de prueba, Ciudad de México"
+CORREO_PRIVACIDAD = "mike@forespot.com"
+AVISO_VERSION = "2026-09-03"
+PORTAL_VERSION = "0.13.0"

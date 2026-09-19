@@ -1,21 +1,21 @@
 {
   "name": "t101-portal-trabajadores",
-  "version": "0.1.0",
+  "version": "0.13.0",
   "private": true,
-  "description": "Portal de Trabajadores Taller 101 — expedientes y documentos",
+  "description": "roster101 — el portal de trabajadores de una empresa: pantalla y cascarón sobre la suite 101",
   "scripts": {
-    "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "db:local": "wrangler d1 execute t101-trabajadores --local --file=./schema.sql",
-    "db:remote": "wrangler d1 execute t101-trabajadores --remote --file=./schema.sql",
-    "prueba": "node pruebas/0110-reglas-de-cuentas.mjs && node pruebas/0112-puerta-de-la-suite.mjs && node pruebas/0101-avisos-al-cambiar-de-correo.mjs"
+    "deploy:staging": "wrangler deploy --env staging",
+    "prueba": "node pruebas/0112-cascaron.mjs && node pruebas/0101-avisos-al-cambiar-de-correo.mjs",
+    "humo": "node scripts/humo.mjs",
+    "medir": "node scripts/medir-puerta.mjs"
   },
   "devDependencies": {
     "playwright": "^1.63.0",
     "wrangler": "^4.0.0"
   },
   "dependencies": {
-    "fflate": "^0.8.2",
     "hono": "^4.6.0"
-  }
+  },
+  "type": "module"
 }
