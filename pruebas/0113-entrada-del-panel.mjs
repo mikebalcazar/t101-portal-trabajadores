@@ -84,7 +84,13 @@ await p.route('**/s101/**', async (route) => {
   }
   if (ruta === '/yo') {
     if (!sesion) return route.fulfill(noSuite(401, 'sin_sesion'));
-    return route.fulfill(okSuite({ usuario: { correo: sesion.correo }, entro_con: sesion.como, tiene_clave: sesion.correo === 'fer@ejemplo.mx' || !!claveDeNueva, orgs: [] }));
+    return route.fulfill(okSuite({
+      usuario: { correo: sesion.correo }, entro_con: sesion.como,
+      tiene_clave: sesion.correo === 'fer@ejemplo.mx' || !!claveDeNueva,
+      // Sólo esta cuenta trae Google ligado (contrato 0.17.2).
+      tiene_google: sesion.correo === 'congoogle@ejemplo.mx',
+      orgs: [],
+    }));
   }
   if (ruta === '/auth/salir') { sesion = null; return route.fulfill(okSuite({})); }
   return route.fulfill(noSuite(404, 'no_encontrado'));
@@ -182,6 +188,25 @@ await p.locator('#nueva2').fill('la-de-nueva-2026');
 await p.locator('#btn-nueva').click();
 await p.waitForSelector('#panel:not(.oculto)', { timeout: 8000 });
 rev(claveDeNueva === 'la-de-nueva-2026' && pedidas.includes('/auth/clave'), 'se guarda en la suite y se abre el panel');
+
+/* Con Google ligado no hace falta contraseña: Google ya es una forma de
+ * volver mañana, que es lo único que cuida esta pantalla. Sin esto se le
+ * pedía una contraseña cada vez que entraba con un código (le pasó al dueño
+ * de la suite el 19-sep, en master101). */
+console.log('\nCon Google ligado no se le pide contraseña, aunque entre con un código:');
+{
+  await p.locator('#btn-salir').click();
+  await p.waitForSelector('#caja-cuenta:not(.oculto)', { timeout: 8000 });
+  await p.locator('#acc-email').fill('congoogle@ejemplo.mx');
+  await p.locator('#btn-entrar').click();
+  await p.waitForSelector('#caja-clave:not(.oculto)', { timeout: 5000 });
+  await p.locator('#btn-olvide').click();
+  await p.waitForSelector('#caja-codigo:not(.oculto)', { timeout: 5000 });
+  await p.locator('#cod-digitos').fill('123456');
+  await p.locator('#btn-codigo').click();
+  await p.waitForSelector('#panel:not(.oculto)', { timeout: 8000 });
+  rev((await p.locator('#caja-nueva').getAttribute('class')).includes('oculto'), 'entra directo al panel: ya tiene por dónde volver');
+}
 
 console.log('\nY de ahí en adelante entra con su contraseña:');
 await p.locator('#btn-salir').click();

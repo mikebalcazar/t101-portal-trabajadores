@@ -213,7 +213,10 @@ $('#btn-google').addEventListener('click', () => {
  *  y mañana no tendría por dónde volver. Con Google no se le pide nada. */
 async function entrarAlPanel() {
   const quien = await suite('/yo').catch(() => null);
-  if (quien && !quien.tiene_clave && quien.entro_con === 'codigo') {
+  // 0.17.2: con Google ligado no se le pide contraseña, ni al entrar con él ni
+  // después con un código: Google ya es una forma de volver. Una API vieja no
+  // manda `tiene_google` y entonces esto se comporta como antes.
+  if (quien && !quien.tiene_clave && !quien.tiene_google && quien.entro_con === 'codigo') {
     pantallaAcceso('#caja-nueva');
     pintaNueva(true);
     return;
