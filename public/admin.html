@@ -20,36 +20,74 @@
 </header>
 
 <main id="acceso" class="envoltura" style="max-width:420px">
-  <!-- La entrada es la de la suite 101: el mismo correo de todas las apps -->
+  <!-- La entrada es la de la suite 101: el mismo correo de todas las apps.
+       Desde el 0.13.1 se entra como en las demás pantallas de la suite: con
+       correo y contraseña, o con Google. El código de 6 dígitos cambió de
+       papel: es cómo se recupera una contraseña olvidada o se pone la primera.
+       El PIN se fue de aquí. -->
   <div class="tarjeta" id="caja-cuenta">
     <h2>Panel de la empresa</h2>
     <p class="ayuda">Solo para el equipo de administración de <span class="eco-empresa">la empresa</span>. Se entra con la cuenta de la suite 101, la misma de las demás aplicaciones.</p>
     <div id="aviso-acceso"></div>
     <div class="campo">
       <label for="acc-email">Tu correo</label>
-      <input id="acc-email" type="email" autocomplete="username" autocapitalize="off" spellcheck="false" inputmode="email" placeholder="nombre@empresa.mx">
+      <input id="acc-email" type="email" autocomplete="username" autocapitalize="off" spellcheck="false" inputmode="email" placeholder="nombre@empresa.mx" enterkeyhint="next">
       <div class="error" id="acc-error"></div>
     </div>
     <button id="btn-entrar" class="btn primario bloque" style="margin-top:12px">Continuar</button>
-    <p class="pista centrado" style="margin:10px 0 0">Te mandamos un código de 6 dígitos. Si ya tienes PIN, en la siguiente pantalla puedes entrar con él.</p>
+    <p class="pista centrado" style="margin:10px 0 0">Con tu correo y tu contraseña, o con tu cuenta de Google.</p>
     <button id="btn-google" class="btn suave bloque" style="margin-top:12px">Entrar con Google</button>
   </div>
 
-  <!-- El código del correo, o el PIN -->
+  <!-- La contraseña -->
+  <div class="tarjeta oculto" id="caja-clave">
+    <h2>Tu contraseña</h2>
+    <p class="ayuda" id="clave-ayuda"></p>
+    <div class="campo">
+      <label for="clave">Contraseña</label>
+      <input id="clave" type="password" name="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+      <div class="error" id="clave-error"></div>
+    </div>
+    <button id="btn-clave" class="btn primario bloque" style="margin-top:12px">Entrar</button>
+    <p class="pista centrado" style="margin:12px 0 0">
+      <button type="button" id="btn-olvide" class="enlace">Olvidé mi contraseña</button> ·
+      <button type="button" id="btn-otro-correo" class="enlace">Usar otro correo</button>
+    </p>
+    <p class="pista centrado" style="margin:8px 0 0">Si es tu primera vez y todavía no tienes una, pícale ahí mismo: te mandamos un código al correo y la pones.</p>
+  </div>
+
+  <!-- Recuperar: el código al correo, que también sirve la primera vez -->
   <div class="tarjeta oculto" id="caja-codigo">
     <h2 id="cod-titulo">Tu código</h2>
     <p class="ayuda" id="cod-ayuda"></p>
     <div class="campo">
       <label for="cod-digitos" id="cod-rotulo">Código de 6 dígitos</label>
-      <input id="cod-digitos" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456"
+      <input id="cod-digitos" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" enterkeyhint="go"
              style="font-size:24px;letter-spacing:8px;text-align:center">
       <div class="error" id="cod-error"></div>
     </div>
-    <button id="btn-codigo" class="btn primario bloque" style="margin-top:12px">Entrar</button>
+    <button id="btn-codigo" class="btn primario bloque" style="margin-top:12px">Continuar</button>
     <p class="pista centrado" style="margin:12px 0 0">
-      <button type="button" id="btn-modo" class="enlace"></button> ·
-      <button type="button" id="btn-otro-correo" class="enlace">Usar otro correo</button>
+      <button type="button" id="btn-reenviar" class="enlace">Mándame otro</button> ·
+      <button type="button" id="btn-otro-correo-3" class="enlace">Usar otro correo</button>
     </p>
+  </div>
+
+  <!-- Poner la contraseña: se teclea dos veces, la segunda de memoria -->
+  <div class="tarjeta oculto" id="caja-nueva">
+    <h2 id="nueva-titulo">Tu contraseña</h2>
+    <p class="ayuda" id="nueva-ayuda"></p>
+    <div class="campo">
+      <label for="nueva">Contraseña nueva</label>
+      <input id="nueva" type="password" name="new-password" autocomplete="new-password" autocapitalize="off" spellcheck="false" enterkeyhint="next">
+    </div>
+    <div class="campo">
+      <label for="nueva2">Otra vez</label>
+      <input id="nueva2" type="password" name="new-password" autocomplete="new-password" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+      <div class="error" id="nueva-error"></div>
+    </div>
+    <button id="btn-nueva" class="btn primario bloque" style="margin-top:12px">Guardar y entrar</button>
+    <p class="pista centrado" style="margin:8px 0 0">Al menos 10 caracteres. Sin exigir mayúscula ni símbolo; la suite rechaza las obvias.</p>
   </div>
 
   <!-- Entró a la suite, pero nadie le dio cuenta en este panel -->
