@@ -752,6 +752,10 @@ const vent = () => $('#ventana-exp');
 async function abrirExpediente(id) {
   vent().classList.remove('oculto');
   document.body.style.overflow = 'hidden';
+  /* La ficha de una persona es lo más hondo del panel: buscarla, picarla,
+   * abrirla. El «atrás» del navegador la cierra en vez de sacar del panel y
+   * perder la búsqueda. */
+  salirExp = window.navegar101.abrirEncima(cierraExpediente);
   $('#exp-cuerpo').innerHTML = '<p class="ayuda">Cargando…</p>';
   $('#exp-titulo').textContent = 'Expediente';
   $('#exp-sub').textContent = '';
@@ -767,7 +771,12 @@ async function abrirExpediente(id) {
   }
 }
 
-function cerrarExpediente() {
+let salirExp = null;
+/** Cerrar la ficha desde el panel. Retrocede, que es lo mismo que hace
+ *  «atrás»: si nada más escondiera, el siguiente «atrás» la reabriría. */
+function cerrarExpediente() { if (salirExp) salirExp(); else cierraExpediente(); }
+
+function cierraExpediente() {
   // Lo que esté a medias se manda antes de que la ficha desaparezca. Si no
   // hubiera señal, la copia local sigue ahí y se ofrece al volver a abrirla.
   if (expAuto && expAuto.hayPendiente()) expAuto.ahora();

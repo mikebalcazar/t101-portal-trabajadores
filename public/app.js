@@ -572,10 +572,17 @@ function abrirDescripcion(def, mios) {
   }
 
   $('#modal-desc').classList.remove('oculto');
+  /* Lo que se abre encima entra al historial: con la descripción puesta, el
+   * «atrás» del teléfono la cierra en vez de sacar del portal. Cerrarla con
+   * el botón hace exactamente lo mismo —retrocede—, para que el siguiente
+   * «atrás» no la reabra. */
+  salirDesc = window.navegar101.abrirEncima(escondeDescripcion);
   $('#desc-cerrar').focus();
 }
 
-function cerrarDescripcion() { $('#modal-desc').classList.add('oculto'); }
+let salirDesc = null;
+function escondeDescripcion() { $('#modal-desc').classList.add('oculto'); }
+function cerrarDescripcion() { if (salirDesc) salirDesc(); else escondeDescripcion(); }
 
 $('#desc-cerrar').addEventListener('click', cerrarDescripcion);
 $('#modal-desc').addEventListener('click', (e) => { if (e.target.id === 'modal-desc') cerrarDescripcion(); });
@@ -700,6 +707,9 @@ async function abrirCamara(destino) {
   $('#cam-abajo-tomar').classList.remove('oculto');
   $('#cam-abajo-confirmar').classList.add('oculto');
   document.body.style.overflow = 'hidden';
+  /* En un teléfono, con la cámara tapando todo, «atrás» es el gesto natural
+   * para salirse de ahí. Hasta hoy se llevaba el portal entero. */
+  salirCam = window.navegar101.abrirEncima(escondeCamara);
   await encenderCamara();
 }
 
@@ -724,7 +734,12 @@ function apagarCamara() {
   if (camFlujo) { camFlujo.getTracks().forEach((t) => t.stop()); camFlujo = null; }
 }
 
-function cerrarCamara() {
+let salirCam = null;
+/** Cerrar la cámara desde la app. Retrocede, que es lo mismo que hace
+ *  «atrás»: si nada más escondiera, el siguiente «atrás» la reabriría. */
+function cerrarCamara() { if (salirCam) salirCam(); else escondeCamara(); }
+
+function escondeCamara() {
   apagarCamara();
   $('#camara').classList.add('oculto');
   $('#camara').classList.remove('confirmando');
