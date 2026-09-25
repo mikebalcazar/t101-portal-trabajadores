@@ -6,7 +6,7 @@
   "scripts": {
     "deploy": "wrangler deploy",
     "deploy:staging": "wrangler deploy --env staging",
-    "prueba": "node pruebas/0112-cascaron.mjs && node pruebas/0101-avisos-al-cambiar-de-correo.mjs && node pruebas/0113-entrada-del-panel.mjs && node pruebas/0114-el-atras-del-navegador.mjs",
+    "prueba": "node pruebas/0115-el-dominio-propio.mjs && node pruebas/0112-cascaron.mjs && node pruebas/0101-avisos-al-cambiar-de-correo.mjs && node pruebas/0113-entrada-del-panel.mjs && node pruebas/0114-el-atras-del-navegador.mjs",
     "humo": "node scripts/humo.mjs",
     "medir": "node scripts/medir-puerta.mjs"
   },

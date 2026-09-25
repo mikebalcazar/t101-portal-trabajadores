@@ -34,6 +34,27 @@ const PREFIJO_SUITE = '/s101';
 const ahora = () => new Date().toISOString();
 const err = (c, msg, code = 400, extra = {}) => c.json({ error: msg, ...extra }, code);
 
+/* Desde el 25-sep-2026 el portal de Taller 101 vive en su dominio propio
+ * (`DOMINIO_PROPIO`, en el wrangler.toml de la raíz). La dirección de
+ * workers.dev SE QUEDA VIVA pero manda para allá (Mike, 25-sep: «redirigir,
+ * no apagar»): las ligas que ya recibieron los trabajadores por correo siguen
+ * sirviendo y todos acaban en el dominio. Sólo la PANTALLA (lecturas GET/HEAD
+ * de la página y sus archivos): `/api/*` no se redirige —una app con token le
+ * pega ahí— y `/s101/*` desde workers.dev viene de una página que ya se está
+ * yendo. Los Workers de otras empresas y staging no tienen `DOMINIO_PROPIO`. */
+export function aDominioPropio(req, env, u) {
+  const d = env.DOMINIO_PROPIO;
+  if (!d || u.hostname === d || !u.hostname.endsWith('.workers.dev')) return null;
+  if (req.method !== 'GET' && req.method !== 'HEAD') return null;
+  if (u.pathname === PREFIJO_SUITE || u.pathname.startsWith(PREFIJO_SUITE + '/') || u.pathname.startsWith('/api/')) return null;
+  return Response.redirect(`https://${d}${u.pathname}${u.search}`, 301);
+}
+app.use('*', async (c, next) => {
+  const ida = aDominioPropio(c.req.raw, c.env, new URL(c.req.url));
+  if (ida) return ida;
+  await next();
+});
+
 /* ─────────── la puerta de la suite ───────────
  * El panel le habla a `suite101-api` desde este mismo origen, por `/s101/*`,
  * con un *service binding*: una llamada de Worker a Worker que nunca sale a
