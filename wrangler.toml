@@ -3,6 +3,17 @@ main = "src/index.js"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Desde el 25-sep-2026 roster101 vive también en roster101.taller101.com (el
+# dominio lleva el nombre de la app, no el del Worker): el DNS de taller101.com
+# está en Cloudflare y el Worker se cuelga del dominio como *custom domain*;
+# Cloudflare pone el registro y el certificado. `workers_dev = true` es
+# obligatorio al lado de `routes`: sin él wrangler apaga workers.dev (le pasó
+# a peek101). Las dos direcciones se quedan.
+workers_dev = true
+routes = [
+  { pattern = "roster101.taller101.com", custom_domain = true }
+]
+
 [assets]
 directory = "./public"
 binding = "ASSETS"
@@ -54,6 +65,8 @@ PORTAL_VERSION = "0.13.1"
 # expedientes de verdad. Ahí la API devuelve el código en la respuesta.
 [env.staging]
 name = "t101-portal-staging"
+# `routes` se hereda del nivel de arriba; staging NO se cuelga del dominio.
+routes = []
 
 [env.staging.assets]
 directory = "./public"
