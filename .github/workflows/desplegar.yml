@@ -115,6 +115,9 @@ jobs:
           npx wrangler deploy -c "${{ matrix.cliente.config }}" | tee /tmp/salida.txt
           liga=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' /tmp/salida.txt | head -1)
           if [ -z "$liga" ]; then echo 'No pude sacar la liga del portal de la salida de wrangler.' >&2; exit 1; fi
+          # El portal de Taller 101 se mide en su dominio: su workers.dev manda
+          # para allá desde el 25-sep (DOMINIO_PROPIO en wrangler.toml).
+          if [ "${{ matrix.cliente.raiz }}" = "true" ]; then liga=https://roster101.taller101.com; fi
           echo "liga=$liga" >> "$GITHUB_OUTPUT"
           echo "Publicado en $liga"
 

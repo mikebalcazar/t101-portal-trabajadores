@@ -19,7 +19,12 @@ directory = "./public"
 binding = "ASSETS"
 # Lo que atiende el Worker antes que los archivos del sitio. `/s101/*` tiene que
 # llegar al Worker: es la puerta a la suite, no un archivo de `public/`.
-run_worker_first = ["/api/*", "/s101/*"]
+#
+# Desde el 25-sep TODO pasa por el Worker: con la lista de antes la capa de
+# archivos contestaba la pantalla sin que el Worker corriera, y la redirección
+# de workers.dev al dominio nunca se ejecutaría (se midió en peek101). El
+# Worker sirve los archivos él mismo (`app.all('*')` → env.ASSETS.fetch).
+run_worker_first = true
 
 # DESDE EL 19-SEP-2026 AQUÍ NO HAY D1 NI R2. La base `t101-trabajadores` y el
 # bucket `t101-documentos` se quedaron en Cloudflare, sin tocar, como red de
@@ -35,6 +40,9 @@ binding = "API"
 service = "suite101-api"
 
 [vars]
+# La dirección de workers.dev manda al dominio (Mike, 25-sep: «redirigir, no
+# apagar»). Sólo este Worker: los de otras empresas y staging no llevan esto.
+DOMINIO_PROPIO = "roster101.taller101.com"
 # La empresa de la suite a la que pertenece este portal. Es lo único que dice
 # de quién son los expedientes: la suite guarda en la base de ESA empresa.
 ORG_ID = "forespot"
