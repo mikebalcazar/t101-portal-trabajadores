@@ -892,6 +892,58 @@ let expCampos = [];      // el catálogo de campos, como lo manda el servidor
 
 const vent = () => $('#ventana-exp');
 
+/* Modo de consulta / modo de edición (Mike, 29-sep-2026): «bloquea el poder
+ * editar los datos del trabajador desde el administrador al menos que actives
+ * el modo de edición. Y mientras no está activo, cada vez que hagas mouse
+ * over sobre un campo, que aparezca que si haces clic se copia al
+ * portapapeles». El expediente se abre siempre en consulta: cada dato es un
+ * renglón que se copia con un clic. «Editar datos» prende la captura de
+ * siempre (con su autoguardado) sólo mientras esa ventana esté abierta. */
+let expEditando = false;
+function ponerModoExpediente(editar) {
+  expEditando = !!editar && puedo('capturar');
+  const b = $('#exp-editar');
+  b.classList.toggle('oculto', !puedo('capturar'));
+  b.textContent = expEditando ? 'Ver sin editar' : '✎ Editar datos';
+  b.classList.toggle('activo', expEditando);
+  $('#exp-guardar').classList.toggle('oculto', !expEditando);
+  $('#exp-aviso-guardado').innerHTML = '';
+}
+async function copiarDato(el) {
+  const v = el.dataset.copiar || '';
+  const pista = el.querySelector('.pista-copiar');
+  if (!v) { if (pista) pista.textContent = 'Sin dato'; return; }
+  let ok = false;
+  try { await navigator.clipboard.writeText(v); ok = true; } catch {}
+  if (!ok) {
+    // Sin permiso de portapapeles (http, o un navegador viejo): se selecciona
+    // el texto para que Ctrl-C lo tome.
+    try {
+      const r = document.createRange(); r.selectNodeContents(el.firstChild);
+      const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      ok = document.execCommand && document.execCommand('copy');
+    } catch {}
+  }
+  if (pista) pista.textContent = ok ? 'Copiado ✓' : 'No se pudo copiar';
+  el.classList.add('copiado');
+  setTimeout(() => { el.classList.remove('copiado'); if (pista) pista.textContent = 'Clic para copiar'; }, 1500);
+}
+$('#exp-editar').addEventListener('click', () => {
+  if (!expAbierto) return;
+  const id = expAbierto.trabajador.id;
+  if (expEditando) {
+    // Se apaga: lo que esté a medias se manda antes de volver a consulta.
+    if (expAuto && expAuto.hayPendiente()) expAuto.ahora();
+    if (expAuto) { expAuto.soltar(); expAuto = null; }
+    ponerModoExpediente(false);
+    pintarExpediente(expAbierto);
+  } else {
+    ponerModoExpediente(true);
+    pintarExpediente(expAbierto);
+    engancharAutoguardado(id);
+  }
+});
+
 async function abrirExpediente(id) {
   vent().classList.remove('oculto');
   document.body.style.overflow = 'hidden';
@@ -906,9 +958,8 @@ async function abrirExpediente(id) {
     const d = await api('/api/admin/trabajadores/' + id);
     expAbierto = d;
     expCampos = d.campos || [];
+    ponerModoExpediente(false);
     pintarExpediente(d);
-    if (puedo('capturar')) engancharAutoguardado(id);
-    else for (const el of $('#exp-cuerpo').querySelectorAll('[data-c]')) el.disabled = true;
   } catch (e) {
     $('#exp-cuerpo').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
   }
@@ -927,6 +978,7 @@ function cierraExpediente() {
   vent().classList.add('oculto');
   document.body.style.overflow = '';
   expAbierto = null;
+  expEditando = false;
 }
 
 function pintarExpediente(d) {
@@ -968,6 +1020,20 @@ function pintarExpediente(d) {
         ${sec.campos.map((c) => {
           const valor = t[c.campo] == null ? '' : String(t[c.campo]);
           const mal = porCampo[c.campo];
+          if (!expEditando) {
+            // Consulta: el dato tal cual (en una opción, su texto), y un clic lo copia.
+            let texto = valor;
+            if (c.opciones && valor) {
+              const op = c.opciones.map((o) => (typeof o === 'string' ? { valor: o, texto: o } : o)).find((o) => o.valor === valor);
+              if (op) texto = op.texto;
+            }
+            const visto = c.mayusculas ? texto.toUpperCase() : texto;
+            return `<div class="campo${mal ? ' falta' : ''}">
+              <label>${esc(c.nombre)}${c.opcional ? ' <span class="opc">(opcional)</span>' : ''}</label>
+              <div class="valor copiable${texto ? '' : ' vacio'}" data-copiar="${esc(texto)}" data-v="${esc(c.campo)}" tabindex="0" role="button" title="Clic para copiar"><span class="valor-texto">${texto ? esc(visto) : '—'}</span><span class="pista-copiar">Clic para copiar</span></div>
+              <div class="error" data-e="${esc(c.campo)}">${mal ? esc(mal) : ''}</div>
+            </div>`;
+          }
           const control = c.opciones
             ? `<select data-c="${esc(c.campo)}">
                  <option value="">${esc(c.vacio || '¿Quién es de él?')}</option>
@@ -999,9 +1065,15 @@ function pintarExpediente(d) {
     </div>`;
   }).join('');
 
+  const modo = puedo('capturar')
+    ? (expEditando
+        ? '<p class="ayuda exp-modo" data-modo="edicion"><b>Editando.</b> Lo que cambies se guarda solo; «Ver sin editar» regresa a consulta.</p>'
+        : '<p class="ayuda exp-modo" data-modo="consulta"><b>Consulta.</b> Clic en un dato para copiarlo. Para cambiar algo, «Editar datos» arriba.</p>')
+    : '';
   $('#exp-cuerpo').innerHTML = `
     ${resumen}
     ${aviso}
+    ${modo}
     <div id="exp-error"></div>
     ${formulario}
     <section class="exp-seccion">
@@ -1009,6 +1081,10 @@ function pintarExpediente(d) {
       <p class="ayuda">Solo para verlos. Subir y borrar documentos lo hace él desde su portal: así el expediente sigue siendo suyo y queda claro quién entregó qué.</p>
       <div class="exp-docs">${documentos}</div>
     </section>`;
+  $('#exp-cuerpo').querySelectorAll('.valor.copiable').forEach((el) => {
+    el.addEventListener('click', () => copiarDato(el));
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); copiarDato(el); } });
+  });
 }
 
 /* Aquí se captura el expediente de alguien más: alguien de oficina teclea a
