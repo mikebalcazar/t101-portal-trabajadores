@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 /* Mide la puerta del panel ya publicada, desde afuera.
  *
  * El chat no alcanza *.workers.dev: el proxy de salida se lo rechaza. El
@@ -51,7 +52,10 @@ rev(salud.estado === 200 && salud.cuerpo?.servicio === 'roster101', 'el portal c
 rev(salud.cuerpo?.datos === 'suite' && salud.cuerpo?.empresa === 'forespot', 'y dice que los datos viven en la suite, en la empresa forespot', `${salud.cuerpo?.datos} ${salud.cuerpo?.empresa}`);
 
 const config = await traer('/api/config');
-rev(config.cuerpo?.version === '0.13.1', 'sirve la versión que se acaba de publicar', String(config.cuerpo?.version));
+// La versión esperada es la de package.json: pegada a mano aquí se quedó en
+// 0.13.1 y tiró en rojo la publicación de 0.14.0 (29-sep-2026).
+const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+rev(config.cuerpo?.version === VERSION, 'sirve la versión que se acaba de publicar', `${config.cuerpo?.version} (se esperaba ${VERSION})`);
 
 linea('');
 linea('-- la puerta de la suite --');
