@@ -786,3 +786,15 @@ tr.grupo td{background:#f3f5f7;padding:8px 10px;font-size:13px;border-top:2px so
 #agrupar{width:auto}
 .equipo-renglon{width:auto;max-width:190px;margin-top:3px;padding:2px 6px;font-size:12px;border:1px solid var(--linea);border-radius:6px;background:#fff;color:var(--tenue)}
 #filtro-equipo{width:auto}
+
+/* expediente en consulta: cada dato se copia con un clic (0.14.2) */
+.ventana-botones{display:flex;gap:8px;align-items:center;flex-shrink:0}
+#exp-editar.activo{background:var(--marca);color:#fff;border-color:var(--marca)}
+.valor.copiable{position:relative;display:flex;align-items:center;gap:8px;min-height:42px;padding:9px 12px;border:1px solid var(--linea);border-radius:8px;background:#fafbfc;cursor:copy;font-size:15px;word-break:break-all}
+.valor.copiable .valor-texto{flex:1}
+.valor.copiable.vacio .valor-texto{color:var(--tenue)}
+.valor.copiable:hover,.valor.copiable:focus{border-color:var(--marca);outline:none;background:#fff}
+.pista-copiar{display:none;font-size:11px;font-weight:700;color:var(--marca);background:#eef4f8;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.valor.copiable:hover .pista-copiar,.valor.copiable:focus .pista-copiar,.valor.copiable.copiado .pista-copiar{display:inline}
+.valor.copiable.copiado{border-color:var(--ok)}
+.valor.copiable.copiado .pista-copiar{color:var(--ok);background:#dff3e5}
