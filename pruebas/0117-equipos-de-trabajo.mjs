@@ -100,6 +100,13 @@ async function rutas(p) {
       if (cuerpo.activo !== undefined) e.activo = cuerpo.activo ? 1 : 0;
       return route.fulfill(json(200, { ok: true, equipo: { ...e, cuantos: 0 } }));
     }
+    const mEqDe = r.match(/^\/api\/admin\/trabajadores\/([^/]+)\/equipo$/);
+    if (mEqDe && metodo === 'PUT') {
+      puts.push({ ruta: r, cuerpo });
+      const t = trabajadores.find((x) => x.id === mEqDe[1]);
+      t.equipo_id = cuerpo.equipo_id || null;
+      return route.fulfill(json(200, { ok: true, equipo_id: t.equipo_id, equipo_nombre: equipos.find((e) => e.id === t.equipo_id)?.nombre ?? null }));
+    }
     const mTr = r.match(/^\/api\/admin\/trabajadores\/([^/]+)$/);
     if (mTr && metodo === 'GET') {
       const t = trabajadores.find((x) => x.id === mTr[1]);
@@ -187,6 +194,30 @@ const errores = [];
   rev(orden.join('|') === 'Ebanistería|t-3|Instalación|t-1|Sin equipo|t-2', 'cada quien bajo su encabezado', orden.join('|'));
   await p.locator('#agrupar').selectOption('');
   rev((await p.locator('tr.grupo').count()) === 0, 'y se quita el agrupado');
+
+  console.log('· el equipo se asigna desde el renglón, y la lista se filtra por equipo');
+  rev((await p.locator('[data-equipo-de]').count()) === 3, 'cada renglón trae su selector de equipo');
+  rev((await p.locator('[data-equipo-de="t-1"]').inputValue()) === 'eq-2', 'con el equipo que tiene');
+  rev((await p.locator('[data-equipo-de="t-2"]').inputValue()) === '', 'o vacío si no tiene');
+  await p.locator('[data-equipo-de="t-2"]').selectOption('eq-1');
+  await p.waitForFunction(() => document.querySelector('[data-equipo-de="t-2"]')?.value === 'eq-1' && !document.querySelector('[data-equipo-de="t-2"]').disabled, null, { timeout: 5000 });
+  const asig = puts.find((x) => x.ruta === '/api/admin/trabajadores/t-2/equipo');
+  rev(!!asig && asig.cuerpo.equipo_id === 'eq-1', 'cambiarlo manda sólo el equipo, a su propia ruta', JSON.stringify(asig?.cuerpo));
+  const opsFiltro = await p.locator('#filtro-equipo option').evaluateAll((os) => os.map((o) => o.value));
+  rev(opsFiltro.slice(0, 2).join('|') === '|sin' && opsFiltro.includes('eq-1') && opsFiltro.includes('eq-4'), 'el filtro ofrece todos, sin equipo y cada equipo', opsFiltro.join('|'));
+  await p.locator('#filtro-equipo').selectOption('eq-1');
+  let visibles = await p.locator('[data-abrir]').evaluateAll((bs) => bs.map((b) => b.dataset.abrir));
+  rev(visibles.join('|') === 't-2|t-3', 'ver sólo Ebanistería deja a los dos de ese equipo', visibles.join('|'));
+  await p.locator('#filtro-equipo').selectOption('eq-2');
+  visibles = await p.locator('[data-abrir]').evaluateAll((bs) => bs.map((b) => b.dataset.abrir));
+  rev(visibles.join('|') === 't-1', 'y sólo Instalación deja a Ana', visibles.join('|'));
+  await p.locator('#filtro-equipo').selectOption('sin');
+  rev((await p.locator('[data-abrir]').count()) === 0 && /Sin resultados/.test(await p.locator('tbody').innerText()), '«Sin equipo» ya no tiene a nadie');
+  await p.locator('#filtro-equipo').selectOption('');
+  rev((await p.locator('[data-abrir]').count()) === 3, 'y «Todos» regresa a los tres');
+  // Para lo que sigue, Beto vuelve a estar sin equipo.
+  await p.locator('[data-equipo-de="t-2"]').selectOption('');
+  await p.waitForFunction(() => !document.querySelector('[data-equipo-de="t-2"]')?.disabled, null, { timeout: 5000 });
 
   console.log('· el expediente desde el panel');
   await p.locator('[data-abrir="t-2"]').click();
