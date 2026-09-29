@@ -9,6 +9,7 @@ const NOMBRES = {
 const ORDEN = ['foto','firma_bancaria','ine','ine_reverso','nss','csf','curp','caratula','dc3','otro'];
 
 let trabajadores = [];
+let equipos = [];   // el catálogo de equipos de trabajo (0.53.0); viene con la lista
 const elegidos = new Set();
 
 // Cómo se ve la lista: completa para revisar a alguien, compacta para pasar
@@ -288,12 +289,14 @@ function aplicaPermisos() {
 async function cargar() {
   const d = await api('/api/admin/trabajadores');
   trabajadores = d.trabajadores;
+  equipos = d.equipos || [];
   const completos = trabajadores.filter((t) => t.estado === 'completo').length;
   $('#resumen').innerHTML = `<b>${trabajadores.length}</b> trabajadores registrados · <b>${completos}</b> con expediente completo · <b>${trabajadores.length - completos}</b> con pendientes.`;
   pintar();
   cargarDuplicados();
   cargarPapelera();
   cargarCuentas();
+  cargarEquipos();
 }
 
 // El portal ya no deja guardar un dato repetido, pero esto muestra lo que haya
@@ -325,12 +328,35 @@ function pintar() {
   const q = $('#buscar').value.trim().toLowerCase();
   const cuerpo = $('#cuerpo');
   cuerpo.innerHTML = '';
-  const lista = trabajadores.filter((t) => !q || JSON.stringify(t).toLowerCase().includes(q));
+  let lista = trabajadores.filter((t) => !q || JSON.stringify(t).toLowerCase().includes(q));
   if (!lista.length) {
     cuerpo.innerHTML = '<tr><td colspan="11" class="centrado" style="padding:30px;color:var(--tenue)">Sin resultados.</td></tr>';
     return;
   }
+  /* Agrupar por equipo (Mike, 29-sep-2026): un renglón de encabezado por
+   * equipo, en el orden del catálogo, y «Sin equipo» al final. Dentro de
+   * cada grupo el orden sigue siendo por apellido, como viene del servidor. */
+  const porEquipo = $('#agrupar') && $('#agrupar').value === 'equipo';
+  let grupoAnterior = null;
+  if (porEquipo) {
+    const orden = new Map(equipos.map((e, i) => [e.id, i]));
+    const rango = (t) => (t.equipo_id && orden.has(t.equipo_id) ? orden.get(t.equipo_id) : equipos.length);
+    lista = lista.slice().sort((a, b) => rango(a) - rango(b));
+  }
   for (const t of lista) {
+    if (porEquipo) {
+      const clave = t.equipo_id || '';
+      if (clave !== grupoAnterior) {
+        grupoAnterior = clave;
+        const nombre = t.equipo_nombre || 'Sin equipo';
+        const cuantos = lista.filter((x) => (x.equipo_id || '') === clave).length;
+        const enc = document.createElement('tr');
+        enc.className = 'grupo';
+        enc.dataset.grupo = nombre;
+        enc.innerHTML = `<td colspan="11"><b>${esc(nombre)}</b> <span style="color:var(--tenue)">· ${cuantos}</span></td>`;
+        cuerpo.appendChild(enc);
+      }
+    }
     const docs = t.documentos || [];
     const hay = {}; for (const d of docs) (hay[d.tipo] ||= []).push(d);
     const chips = ORDEN.filter((k) => hay[k]).map((k) =>
@@ -347,7 +373,7 @@ function pintar() {
     tr.innerHTML = `
       <td><input type="checkbox" class="palomita" data-id="${t.id}"${elegidos.has(t.id) ? ' checked' : ''}></td>
       <td class="mono">${t.folio ?? ''}</td>
-      <td><button class="abre-exp" data-abrir="${t.id}" title="Abrir su expediente">${nombreCelda(t)}</button></td>
+      <td><button class="abre-exp" data-abrir="${t.id}" title="Abrir su expediente">${nombreCelda(t)}</button>${t.equipo_nombre ? `<br><span class="equipo-chip">${esc(t.equipo_nombre)}</span>` : ''}</td>
       <td class="solo-compacta mono">${esc(t.rfc) || '<span style="color:var(--alerta)">falta</span>'}</td>
       <td><span class="mono">${esc(t.celular)}</span><br><span style="color:var(--tenue);font-size:12px">${esc(t.email)}</span></td>
       <td class="mono">${esc(t.nss)}<br>${esc(t.curp)}</td>
@@ -669,6 +695,78 @@ async function cargarCuentas() {
   }
 }
 
+/* ── equipos de trabajo (0.53.0) ──
+ * Mike, 29-sep-2026: «esos equipos los doy de alta yo, y ellos sólo
+ * seleccionan cuál de los disponibles es el suyo, o "no tengo equipo"».
+ * Verlos puede cualquiera del panel; darlos de alta, renombrarlos, apagarlos
+ * y borrarlos, quien puede capturar. */
+async function cargarEquipos() {
+  const lista = $('#equipos-lista');
+  if (!lista) return;
+  const edita = puedo('capturar');
+  document.querySelectorAll('#caja-equipos .solo-capturar').forEach((el) => el.classList.toggle('oculto', !edita));
+  try {
+    const d = await api('/api/admin/equipos');
+    equipos = d.equipos || [];
+    const prendidos = equipos.filter((e) => e.activo).length;
+    $('#equipos-resumen').textContent = equipos.length
+      ? `${equipos.length} equipo${equipos.length === 1 ? '' : 's'}, ${prendidos} a la vista de los trabajadores. Cada quien escoge el suyo en su portal, o «No tengo equipo».`
+      : 'Todavía no hay equipos. Los das de alta aquí; cada trabajador escoge el suyo en su portal, o «No tengo equipo».';
+    lista.innerHTML = equipos.map((e) => `<div class="cuenta${e.activo ? '' : ' inactiva'}" data-equipo="${esc(e.id)}">
+        <div class="datos">
+          ${edita ? `<input class="eq-editar" data-renombrar="${esc(e.id)}" value="${esc(e.nombre)}" maxlength="60" aria-label="Nombre del equipo">` : `<b>${esc(e.nombre)}</b>`}
+          ${e.activo ? '' : ' <span class="etiqueta borrador">apagado</span>'}<br>
+          <span style="color:var(--tenue);font-size:12px">${e.cuantos} trabajador${e.cuantos === 1 ? '' : 'es'}</span>
+        </div>
+        ${edita ? `<button class="btn suave chico" data-apagar-equipo="${esc(e.id)}" data-activo="${e.activo ? 1 : 0}">${e.activo ? 'Apagar' : 'Prender'}</button>
+                  <button class="btn peligro chico" data-borrar-equipo="${esc(e.id)}" data-nombre="${esc(e.nombre)}" data-cuantos="${e.cuantos}">Borrar</button>` : ''}
+      </div>`).join('');
+    lista.querySelectorAll('[data-renombrar]').forEach((inp) => {
+      const antes = inp.value;
+      inp.addEventListener('change', () => {
+        const nombre = inp.value.trim();
+        if (!nombre || nombre === antes) { inp.value = antes; return; }
+        accionEquipo(() => api(`/api/admin/equipos/${inp.dataset.renombrar}`, { method: 'PUT', body: JSON.stringify({ nombre }) }), `El equipo ahora se llama «${nombre}».`);
+      });
+    });
+    lista.querySelectorAll('[data-apagar-equipo]').forEach((b) => b.addEventListener('click', () => {
+      const activo = b.dataset.activo === '1';
+      accionEquipo(() => api(`/api/admin/equipos/${b.dataset.apagarEquipo}`, { method: 'PUT', body: JSON.stringify({ activo: !activo }) }), activo ? 'Equipo apagado: ya no sale en la lista de los trabajadores.' : 'Equipo prendido.');
+    }));
+    lista.querySelectorAll('[data-borrar-equipo]').forEach((b) => b.addEventListener('click', () => {
+      const n = Number(b.dataset.cuantos);
+      if (!confirm(`¿Borrar el equipo «${b.dataset.nombre}»?${n ? `\n\n${n} trabajador${n === 1 ? ' se queda' : 'es se quedan'} «sin equipo».` : ''}\n\nSi sólo quieres que no lo escojan, mejor apágalo.`)) return;
+      accionEquipo(() => api(`/api/admin/equipos/${b.dataset.borrarEquipo}`, { method: 'DELETE' }), `Se borró el equipo «${b.dataset.nombre}».`);
+    }));
+  } catch (e) {
+    lista.innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
+  }
+}
+async function accionEquipo(hacer, mensaje) {
+  $('#aviso-equipos').innerHTML = '';
+  try {
+    await hacer();
+    $('#aviso-equipos').innerHTML = `<div class="aviso bien">${esc(mensaje)}</div>`;
+  } catch (e) {
+    $('#aviso-equipos').innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`;
+  }
+  await cargarEquipos();
+  // La lista también cambia: el nombre del equipo va en cada renglón.
+  try { await cargar(); } catch {}
+}
+$('#btn-crear-equipo').addEventListener('click', async () => {
+  const inp = $('#eq-nombre');
+  const nombre = inp.value.trim();
+  document.querySelector('[data-e="eq-nombre"]').textContent = '';
+  if (!nombre) { document.querySelector('[data-e="eq-nombre"]').textContent = 'Escribe el nombre del equipo.'; inp.focus(); return; }
+  const b = $('#btn-crear-equipo'); b.disabled = true;
+  try {
+    await accionEquipo(() => api('/api/admin/equipos', { method: 'POST', body: JSON.stringify({ nombre }) }), `Equipo «${nombre}» dado de alta.`);
+    inp.value = '';
+  } finally { b.disabled = false; }
+});
+$('#agrupar').addEventListener('change', () => pintar());
+
 async function accionCuenta(hacer, mensaje) {
   $('#aviso-cuentas').innerHTML = '';
   try {
@@ -827,8 +925,8 @@ function pintarExpediente(d) {
           const mal = porCampo[c.campo];
           const control = c.opciones
             ? `<select data-c="${esc(c.campo)}">
-                 <option value="">¿Quién es de él?</option>
-                 ${c.opciones.map((o) => `<option${o === valor ? ' selected' : ''}>${esc(o)}</option>`).join('')}
+                 <option value="">${esc(c.vacio || '¿Quién es de él?')}</option>
+                 ${c.opciones.map((o) => { const op = typeof o === 'string' ? { valor: o, texto: o } : o; return `<option value="${esc(op.valor)}"${op.valor === valor ? ' selected' : ''}>${esc(op.texto)}</option>`; }).join('')}
                </select>`
             : `<input data-c="${esc(c.campo)}" value="${esc(valor)}"${c.mayusculas ? ' style="text-transform:uppercase"' : ''}>`;
           return `<div class="campo${mal ? ' falta' : ''}">

@@ -4,7 +4,7 @@
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 
-const CAMPOS = ['nombre','apellido_paterno','apellido_materno','celular','puesto','nss','curp','rfc',
+const CAMPOS = ['nombre','apellido_paterno','apellido_materno','celular','puesto','equipo_id','nss','curp','rfc',
   'banco','clabe','beneficiario','emerg_nombre','emerg_parentesco','emerg_telefono','emerg_email'];
 
 // `captura` dice cómo se toma cada uno: 'tarjeta' recorta al tamaño exacto de
@@ -306,6 +306,7 @@ async function abrirPanel() {
   $('#panel').classList.remove('oculto');
   $('#btn-salir').classList.remove('oculto');
   $('#quien').textContent = estado.trabajador.email;
+  await cargarEquipos();
   llenarFormulario();
   pintarDocumentos();
   pintarFoto();
@@ -348,6 +349,22 @@ async function recuperarRespaldo() {
   actualizarProgreso(); pintarFirma();
   await guardarAvance();
   aviso(`Recuperamos <b>${cambios} dato${cambios === 1 ? '' : 's'}</b> que habías escrito y no alcanzaron a guardarse. Ya quedaron.`, 'bien');
+}
+
+/* Los equipos de trabajo los da de alta la empresa; aquí sólo se escoge uno
+ * de los que están, o «No tengo equipo» (Mike, 29-sep-2026). Si el suyo ya
+ * lo apagaron se sigue enseñando, para no cambiarle la respuesta a nadie. */
+async function cargarEquipos() {
+  const sel = $('#f-equipo_id');
+  if (!sel) return;
+  let equipos = [];
+  try { equipos = (await api('/api/equipos')).equipos || []; } catch { equipos = []; }
+  const mio = (estado.trabajador && estado.trabajador.equipo_id) || '';
+  if (mio && !equipos.some((e) => e.id === mio)) equipos.push({ id: mio, nombre: estado.trabajador.equipo_nombre || 'Mi equipo (ya no está en la lista)' });
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  sel.innerHTML = '<option value="">No tengo equipo</option>' + equipos.map((e) => `<option value="${esc(e.id)}">${esc(e.nombre)}</option>`).join('');
+  // Sin equipos dados de alta, el campo no se enseña: no hay nada que escoger.
+  sel.closest('.campo').classList.toggle('oculto', equipos.length === 0);
 }
 
 function llenarFormulario() {
