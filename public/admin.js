@@ -290,6 +290,7 @@ async function cargar() {
   const d = await api('/api/admin/trabajadores');
   trabajadores = d.trabajadores;
   equipos = d.equipos || [];
+  pintarFiltroEquipo();
   const completos = trabajadores.filter((t) => t.estado === 'completo').length;
   $('#resumen').innerHTML = `<b>${trabajadores.length}</b> trabajadores registrados · <b>${completos}</b> con expediente completo · <b>${trabajadores.length - completos}</b> con pendientes.`;
   pintar();
@@ -328,7 +329,11 @@ function pintar() {
   const q = $('#buscar').value.trim().toLowerCase();
   const cuerpo = $('#cuerpo');
   cuerpo.innerHTML = '';
-  let lista = trabajadores.filter((t) => !q || JSON.stringify(t).toLowerCase().includes(q));
+  /* Ver sólo un equipo (Mike, 29-sep: «filtrar por equipo, no sólo
+   * agrupar»): «sin» son los que no tienen; un id, los de ese equipo. */
+  const filtro = ($('#filtro-equipo') && $('#filtro-equipo').value) || '';
+  const delEquipo = (t) => !filtro || (filtro === 'sin' ? !t.equipo_id : t.equipo_id === filtro);
+  let lista = trabajadores.filter((t) => delEquipo(t) && (!q || JSON.stringify(t).toLowerCase().includes(q)));
   if (!lista.length) {
     cuerpo.innerHTML = '<tr><td colspan="11" class="centrado" style="padding:30px;color:var(--tenue)">Sin resultados.</td></tr>';
     return;
@@ -373,7 +378,7 @@ function pintar() {
     tr.innerHTML = `
       <td><input type="checkbox" class="palomita" data-id="${t.id}"${elegidos.has(t.id) ? ' checked' : ''}></td>
       <td class="mono">${t.folio ?? ''}</td>
-      <td><button class="abre-exp" data-abrir="${t.id}" title="Abrir su expediente">${nombreCelda(t)}</button>${t.equipo_nombre ? `<br><span class="equipo-chip">${esc(t.equipo_nombre)}</span>` : ''}</td>
+      <td><button class="abre-exp" data-abrir="${t.id}" title="Abrir su expediente">${nombreCelda(t)}</button><br>${celdaEquipo(t)}</td>
       <td class="solo-compacta mono">${esc(t.rfc) || '<span style="color:var(--alerta)">falta</span>'}</td>
       <td><span class="mono">${esc(t.celular)}</span><br><span style="color:var(--tenue);font-size:12px">${esc(t.email)}</span></td>
       <td class="mono">${esc(t.nss)}<br>${esc(t.curp)}</td>
@@ -394,6 +399,7 @@ function pintar() {
   }
   cuerpo.querySelectorAll('[data-abrir]').forEach((b) =>
     b.addEventListener('click', () => abrirExpediente(b.dataset.abrir)));
+  cuerpo.querySelectorAll('[data-equipo-de]').forEach((sel) => sel.addEventListener('change', () => asignarEquipo(sel)));
 
   cuerpo.querySelectorAll('.palomita').forEach((p) => p.addEventListener('change', () => {
     if (p.checked) elegidos.add(p.dataset.id); else elegidos.delete(p.dataset.id);
@@ -766,6 +772,7 @@ $('#btn-crear-equipo').addEventListener('click', async () => {
   } finally { b.disabled = false; }
 });
 $('#agrupar').addEventListener('change', () => pintar());
+$('#filtro-equipo').addEventListener('change', () => pintar());
 
 async function accionCuenta(hacer, mensaje) {
   $('#aviso-cuentas').innerHTML = '';
@@ -814,6 +821,44 @@ $('#btn-crear-cuenta').addEventListener('click', async () => {
 // En la vista completa el nombre va en dos renglones, con el puesto debajo. En
 // la compacta va en uno solo: son los apellidos primero y el nombre después,
 // que es como se lee una lista.
+/* El equipo en el renglón: quien puede capturar lo cambia ahí mismo (Mike,
+ * 29-sep: «no puedo asignar trabajadores»); los demás lo ven. Si el suyo está
+ * apagado se sigue ofreciendo, para poder quitárselo. */
+function celdaEquipo(t) {
+  if (!puedo('capturar')) return t.equipo_nombre ? `<span class="equipo-chip">${esc(t.equipo_nombre)}</span>` : '';
+  const ops = equipos.filter((e) => e.activo || e.id === t.equipo_id);
+  if (!ops.length) return '';
+  return `<select class="equipo-renglon" data-equipo-de="${esc(t.id)}" aria-label="Equipo de trabajo" title="Equipo de trabajo">
+      <option value="">Sin equipo</option>
+      ${ops.map((e) => `<option value="${esc(e.id)}"${e.id === t.equipo_id ? ' selected' : ''}>${esc(e.nombre)}${e.activo ? '' : ' (apagado)'}</option>`).join('')}
+    </select>`;
+}
+async function asignarEquipo(sel) {
+  const id = sel.dataset.equipoDe;
+  const t = trabajadores.find((x) => x.id === id);
+  const antes = (t && t.equipo_id) || '';
+  sel.disabled = true;
+  try {
+    const r = await api(`/api/admin/trabajadores/${id}/equipo`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ equipo_id: sel.value }) });
+    if (t) { t.equipo_id = r.equipo_id; t.equipo_nombre = r.equipo_nombre; }
+    equipos = equipos.map((e) => ({ ...e, cuantos: trabajadores.filter((x) => x.equipo_id === e.id).length }));
+    pintar();
+    cargarEquipos();
+  } catch (e) {
+    sel.value = antes;
+    sel.disabled = false;
+    alert(e.message);
+  }
+}
+function pintarFiltroEquipo() {
+  const sel = $('#filtro-equipo');
+  if (!sel) return;
+  const antes = sel.value;
+  sel.innerHTML = '<option value="">Todos los equipos</option><option value="sin">Sin equipo</option>' +
+    equipos.map((e) => `<option value="${esc(e.id)}">${esc(e.nombre)}${e.activo ? '' : ' (apagado)'} · ${e.cuantos}</option>`).join('');
+  sel.value = [...sel.options].some((o) => o.value === antes) ? antes : '';
+  sel.classList.toggle('oculto', equipos.length === 0);
+}
 function nombreCelda(t) {
   const apellidos = `${esc(t.apellido_paterno)} ${esc(t.apellido_materno)}`.trim();
   if (vista === 'compacta') {
