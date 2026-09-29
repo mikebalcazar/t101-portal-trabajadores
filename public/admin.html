@@ -109,6 +109,7 @@
       <a id="btn-csv" class="btn suave solo-exportar" href="/api/admin/tabla.csv"><span class="solo-grande">⬇ Solo la tabla (CSV)</span><span class="solo-chico">⬇ CSV</span></a>
       <button id="btn-refrescar" class="btn suave"><span class="solo-grande">↻ Actualizar</span><span class="solo-chico">↻</span></button>
       <input id="buscar" placeholder="Buscar por nombre, CURP, correo…">
+      <select id="agrupar" aria-label="Agrupar la lista"><option value="">Sin agrupar</option><option value="equipo">Por equipo de trabajo</option></select>
       <div class="cambia-vista" role="group" aria-label="Cómo se ve la lista">
         <button type="button" id="vista-completa" class="activa">Completa</button>
         <button type="button" id="vista-compacta">Compacta</button>
@@ -170,6 +171,22 @@
       <tbody id="cuerpo"></tbody>
     </table>
   </div>
+  <details class="tarjeta" id="caja-equipos">
+    <summary class="titulo-plegable"><h2 style="display:inline;margin:0">🛠 Equipos de trabajo</h2>
+      <span class="ayuda" style="display:block;margin-top:4px" id="equipos-resumen">Los equipos los das de alta aquí; cada trabajador escoge el suyo en su portal, o «No tengo equipo».</span>
+    </summary>
+    <div id="aviso-equipos"></div>
+    <div id="equipos-lista" class="cuentas"></div>
+    <div class="rejilla solo-capturar" style="margin-top:12px;align-items:end">
+      <div class="campo">
+        <label for="eq-nombre">Equipo nuevo</label>
+        <input id="eq-nombre" autocomplete="off" placeholder="Ebanistería, Instalación, Pintura…" maxlength="60">
+        <div class="error" data-e="eq-nombre"></div>
+      </div>
+      <div class="campo"><button id="btn-crear-equipo" class="btn primario" type="button">Dar de alta el equipo</button></div>
+    </div>
+    <p class="ayuda solo-capturar" style="margin:10px 0 0">Apagar un equipo lo quita de la lista que ven los trabajadores; quien ya estaba en él se queda. Borrarlo deja a su gente «sin equipo».</p>
+  </details>
   <details class="tarjeta solo-cuentas oculto" id="caja-cuentas">
     <summary class="titulo-plegable"><h2 style="display:inline;margin:0">👥 Cuentas de este panel</h2>
       <span class="ayuda" style="display:block;margin-top:4px" id="cuentas-resumen">Quién puede entrar y qué puede hacer. Solo la dueña o el dueño lo ve.</span>

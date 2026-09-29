@@ -777,3 +777,10 @@ details[open] > .titulo-plegable::before{content:'▾ '}
 .etiqueta.nivel{background:#eaf4fa;color:var(--marca-sombra)}
 .etiqueta.inactiva{background:#eee;color:#666}
 .etiqueta.provisional{background:#fdf1e3;color:var(--canto)}
+
+/* equipos de trabajo (0.53.0) */
+tr.grupo td{background:#f3f5f7;padding:8px 10px;font-size:13px;border-top:2px solid var(--linea)}
+.equipo-chip{display:inline-block;margin-top:3px;padding:1px 8px;border-radius:999px;background:#f3f5f7;border:1px solid var(--linea);font-size:11px;color:var(--tenue)}
+.cuentas .cuenta input.eq-editar{width:auto;min-width:200px;font-size:14px;padding:6px 8px}
+.cuentas .cuenta.inactiva .datos{opacity:.65}
+#agrupar{width:auto}
