@@ -117,10 +117,19 @@ window.Escaner = (function () {
 
   /* ────────────────── prender y apagar ────────────────── */
 
+  /* BATERÍA (Mike, 29-sep-2026). La vista previa pide 1280×960, no 2560×1920:
+   * lo que se guarda se recorta a 1600–1700 de lado (FORMAS.salida), así que
+   * el sensor a 2560 no le añadía nada y costaba cuatro veces más procesador
+   * mientras el trabajador encuadraba. Y si la app se va al fondo con el
+   * escáner abierto, el sensor se apaga; al volver, se prende solo. */
+  const CAMARA_ANCHO = 1280, CAMARA_ALTO = 960;
+  let dormido = false;
+
   async function prender() {
     apagar();
+    dormido = false;
     flujo = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1920 } },
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: CAMARA_ANCHO }, height: { ideal: CAMARA_ALTO } },
       audio: false,
     });
     const v = q('.esc-video');
@@ -131,6 +140,14 @@ window.Escaner = (function () {
   function apagar() {
     if (flujo) { flujo.getTracks().forEach((t) => t.stop()); flujo = null; }
   }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      if (flujo) { apagar(); dormido = true; }
+    } else if (dormido && capa && !capa.classList.contains('oculto') && !capa.classList.contains('congelado')) {
+      prender().catch(() => {});
+    }
+  });
 
   function terminar(archivo) {
     apagar();

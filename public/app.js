@@ -344,7 +344,7 @@ async function recuperarRespaldo() {
     el.value = v; cambios++;
   }
   if (!cambios) { borrarRespaldo(); return; }
-  cambiosPendientes = true;
+  cambiosPendientes = true; vigilarPendientes();
   actualizarProgreso(); pintarFirma();
   await guardarAvance();
   aviso(`Recuperamos <b>${cambios} dato${cambios === 1 ? '' : 's'}</b> que habías escrito y no alcanzaron a guardarse. Ya quedaron.`, 'bien');
@@ -638,7 +638,7 @@ async function subir(tipo, archivo, etiqueta = '') {
     pintarDocumentos(); pintarFoto(); pintarFirma(); actualizarProgreso();
     // El documento ya quedó en el servidor. Los datos escritos se guardan
     // también, pendientes o no: así subir un papel siempre deja todo al día.
-    cambiosPendientes = true;
+    cambiosPendientes = true; vigilarPendientes();
     await guardarAvance();
     aviso('Listo, se guardó.', 'bien', false);
   } catch (e) { if (e.estado !== 401) aviso(e.message, 'mal'); }
@@ -713,11 +713,21 @@ async function abrirCamara(destino) {
   await encenderCamara();
 }
 
+/* BATERÍA (Mike, 29-sep-2026). La vista previa pide 1280×960, no 1920×1440:
+ * la foto que se guarda se recorta a 1200 (retrato) o 1800 (documento) de
+ * lado, y el sensor a 1920 no mejora eso pero sí cuesta el doble en el
+ * procesador. Y la cámara se apaga cuando la app se va al fondo —el sensor
+ * seguía encendido con la pantalla tapada— y se vuelve a prender sola al
+ * regresar, si la pantalla de la cámara sigue abierta. */
+const CAMARA_ANCHO = 1280, CAMARA_ALTO = 960;
+let camDormida = false;   // se apagó por irse al fondo, no porque alguien la cerró
+
 async function encenderCamara() {
   apagarCamara();
+  camDormida = false;
   try {
     camFlujo = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: camLado, width: { ideal: 1920 }, height: { ideal: 1440 } },
+      video: { facingMode: camLado, width: { ideal: CAMARA_ANCHO }, height: { ideal: CAMARA_ALTO } },
       audio: false,
     });
     const v = $('#cam-video');
@@ -733,6 +743,18 @@ async function encenderCamara() {
 function apagarCamara() {
   if (camFlujo) { camFlujo.getTracks().forEach((t) => t.stop()); camFlujo = null; }
 }
+
+/* La cámara abierta y a la vista es la única que gasta: si la app se va al
+ * fondo se apaga el sensor; al volver, si la pantalla de la cámara sigue
+ * abierta y no está en «confirmar», se vuelve a prender. */
+function camaraAbierta() { return !$('#camara').classList.contains('oculto') && !$('#camara').classList.contains('confirmando'); }
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    if (camFlujo) { apagarCamara(); camDormida = true; }
+  } else if (camDormida && camaraAbierta()) {
+    encenderCamara();
+  }
+});
 
 let salirCam = null;
 /** Cerrar la cámara desde la app. Retrocede, que es lo mismo que hace
@@ -1006,7 +1028,7 @@ function marcaGuardado(texto, clase = '') {
 }
 
 function programarGuardado() {
-  cambiosPendientes = true;
+  cambiosPendientes = true; vigilarPendientes();
   respaldoLocal();
   marcaGuardado('Escribiendo…', 'trabajando');
   clearTimeout(temporizadorGuardado);
@@ -1030,9 +1052,21 @@ async function guardarAvance() {
   }
 }
 
-// Reintento: al volver la señal, y cada 20 s mientras haya algo sin guardar.
+// Reintento: al volver la señal, y cada 20 s MIENTRAS haya algo sin guardar.
+// Antes era un `setInterval` fijo que despertaba al teléfono cada 20 s toda
+// la sesión, con la fila vacía y con la app en el fondo; ahora el
+// temporizador sólo existe desde que algo queda pendiente hasta que se guarda
+// (batería, 29-sep-2026).
 window.addEventListener('online', () => { if (cambiosPendientes) guardarAvance(); });
-setInterval(() => { if (cambiosPendientes && !guardandoAvance && !avisandoVencida && navigator.onLine) guardarAvance(); }, 20000);
+let reintento = null;
+function vigilarPendientes() {
+  if (reintento || !cambiosPendientes) return;
+  reintento = setTimeout(() => {
+    reintento = null;
+    if (cambiosPendientes && !guardandoAvance && !avisandoVencida && navigator.onLine && document.visibilityState === 'visible') guardarAvance();
+    if (cambiosPendientes) vigilarPendientes();
+  }, 20000);
+}
 
 /* Al cerrar la pestaña o mandar la app al fondo, un fetch normal se corta a
    medias en el celular. `keepalive` deja que el navegador lo termine solo,
@@ -1058,7 +1092,7 @@ document.addEventListener('visibilitychange', () => {
 
 $('#btn-avance').addEventListener('click', async () => {
   const b = $('#btn-avance'); ocupado(b, true);
-  cambiosPendientes = true;
+  cambiosPendientes = true; vigilarPendientes();
   await guardarAvance();
   ocupado(b, false);
   aviso('Guardado. Puedes cerrar e irte: cuando vuelvas, entra con tu mismo correo y sigues donde te quedaste.', 'bien');

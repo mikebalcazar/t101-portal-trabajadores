@@ -46,7 +46,7 @@ window.Autoguardado = function Autoguardado(cfg) {
   let pendiente = false;
   let guardando = false;
   let temporizador = null;
-  let intervalo = null;
+  let reintento = null;     // sólo existe mientras quede algo sin guardar
   let vivo = true;
   const marca = cfg.marca || (() => {});
 
@@ -73,7 +73,7 @@ window.Autoguardado = function Autoguardado(cfg) {
 
   function programar() {
     if (!vivo) return;
-    pendiente = true;
+    pendiente = true; reintentar();
     copiar();
     marca('Escribiendo…', 'trabajando');
     clearTimeout(temporizador);
@@ -133,7 +133,7 @@ window.Autoguardado = function Autoguardado(cfg) {
     if (servidor && c.hora <= servidor) { borrarCopia(); return 0; }
     const cambios = aplicar(c.datos);
     if (!cambios) { borrarCopia(); return 0; }
-    pendiente = true;
+    pendiente = true; reintentar();
     return cambios;
   }
 
@@ -157,9 +157,18 @@ window.Autoguardado = function Autoguardado(cfg) {
     if (document.visibilityState === 'hidden') alSalir();
   });
   window.addEventListener('online', () => { if (pendiente) ahora(); });
-  intervalo = setInterval(() => {
-    if (pendiente && !guardando && navigator.onLine) ahora();
-  }, REINTENTO);
+  /* El reintento de cada 20 s existe sólo desde que algo queda pendiente
+   * hasta que se guarda. Antes era un `setInterval` fijo toda la sesión, que
+   * despertaba al teléfono con la ficha guardada y con la app en el fondo
+   * (batería, 29-sep-2026). */
+  function reintentar() {
+    if (reintento || !vivo || !pendiente) return;
+    reintento = setTimeout(() => {
+      reintento = null;
+      if (pendiente && !guardando && navigator.onLine && document.visibilityState === 'visible') ahora();
+      if (pendiente) reintentar();
+    }, REINTENTO);
+  }
 
   return {
     programar,
@@ -169,13 +178,13 @@ window.Autoguardado = function Autoguardado(cfg) {
     copiar,
     borrarCopia,
     hayPendiente: () => pendiente,
-    marcarPendiente: () => { pendiente = true; },
+    marcarPendiente: () => { pendiente = true; reintentar(); },
     // Al cerrar la ficha se apaga: si no, el temporizador seguiría mandando los
     // datos de una pantalla que ya no está a la vista.
     soltar: () => {
       vivo = false;
       clearTimeout(temporizador);
-      clearInterval(intervalo);
+      clearTimeout(reintento); reintento = null;
     },
   };
 };
