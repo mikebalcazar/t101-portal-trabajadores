@@ -6,3 +6,5 @@ llaves.env
 subir-github.log
 .dev.vars
 central/.dev.vars
+# la deja el flujo al publicar (version-nueva.js la compara)
+public/huella.txt
