@@ -44,6 +44,15 @@ const err = (c, msg, code = 400, extra = {}) => c.json({ error: msg, ...extra },
  * yendo. Los Workers de otras empresas y staging no tienen `DOMINIO_PROPIO`. */
 export function aDominioPropio(req, env, u) {
   const d = env.DOMINIO_PROPIO;
+  /* Sin la «s» (Mike, 30-sep-2026: en un Android nuevo abrió
+   * http://quell101.taller101.com y el login con Google contestó
+   * origen_no_permitido, porque la API sólo deja volver a https). Cloudflare
+   * sirve http tal cual si no se le dice; aquí se le dice: al dominio propio
+   * se llega sólo por https. Sólo lecturas: un POST por http no se convierte
+   * en GET a escondidas. */
+  if (d && u.protocol === 'http:' && u.hostname === d && (req.method === 'GET' || req.method === 'HEAD')) {
+    return Response.redirect(`https://${d}${u.pathname}${u.search}`, 301);
+  }
   if (!d || u.hostname === d || !u.hostname.endsWith('.workers.dev')) return null;
   if (req.method !== 'GET' && req.method !== 'HEAD') return null;
   if (u.pathname === PREFIJO_SUITE || u.pathname.startsWith(PREFIJO_SUITE + '/') || u.pathname.startsWith('/api/')) return null;
