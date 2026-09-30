@@ -798,3 +798,8 @@ tr.grupo td{background:#f3f5f7;padding:8px 10px;font-size:13px;border-top:2px so
 .valor.copiable:hover .pista-copiar,.valor.copiable:focus .pista-copiar,.valor.copiable.copiado .pista-copiar{display:inline}
 .valor.copiable.copiado{border-color:var(--ok)}
 .valor.copiable.copiado .pista-copiar{color:var(--ok);background:#dff3e5}
+
+/* El letrero de versión nueva (30-sep-2026): abajo, encima de todo, con un
+   botón para recargar cuando la persona termine lo que traía. */
+#aviso-version { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 5000; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 8px; background: #1d1f20; color: #fff; font-size: 13px; line-height: 1.35; box-shadow: 0 8px 24px rgba(0,0,0,.3); max-width: calc(100vw - 32px); }
+#aviso-version button { border: 0; border-radius: 4px; padding: 6px 12px; background: #C6FF3D; color: #1d1f20; font-weight: 700; cursor: pointer; font: inherit; font-weight: 700; white-space: nowrap; }

@@ -65,6 +65,7 @@ jobs:
         id: publicar
         run: |
           set -euo pipefail
+          printf '%s\n' "${{ github.sha }}" > public/huella.txt   # la compara version-nueva.js
           npx wrangler deploy --env staging | tee /tmp/staging.txt
           liga=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' /tmp/staging.txt | head -1)
           if [ -z "$liga" ]; then echo 'No pude sacar la liga de staging.' >&2; exit 1; fi
@@ -112,6 +113,7 @@ jobs:
         id: publicar
         run: |
           set -euo pipefail
+          printf '%s\n' "${{ github.sha }}" > public/huella.txt   # la compara version-nueva.js
           npx wrangler deploy -c "${{ matrix.cliente.config }}" | tee /tmp/salida.txt
           liga=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' /tmp/salida.txt | head -1)
           if [ -z "$liga" ]; then echo 'No pude sacar la liga del portal de la salida de wrangler.' >&2; exit 1; fi
