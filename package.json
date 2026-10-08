@@ -1,6 +1,6 @@
 {
   "name": "t101-portal-trabajadores",
-  "version": "0.14.2",
+  "version": "0.15.0",
   "private": true,
   "description": "roster101 — el portal de trabajadores de una empresa: pantalla y cascarón sobre la suite 101",
   "scripts": {

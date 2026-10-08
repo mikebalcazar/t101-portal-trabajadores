@@ -227,3 +227,17 @@ Gotchas de este entorno:
 4. Un cambio = probarlo local → bitácora → versión → commit → push a `main` →
    leer el run → contarle a Mike qué se midió, con números, y qué no se pudo
    verificar.
+
+## 8-oct-2026 — el look de cost101 (0.15.0)
+
+Mike: todas las plataformas de la suite con el aspecto de cost101 (fondo azul
+oscuro en degradado, tarjetas de vidrio, botones redondos) y la tipografía y
+el logo de dash/quell. En roster101 todo vive en `public/estilos.css`: las
+variables de `:root` conservan sus nombres y cambian de valor (`--marca` es
+ahora `#3AA3DC`, el azul de la marca sobre oscuro); hay variables nuevas
+(`--vidrio`, `--campo`, `--dialogo`, `--velo`, `--bien-fondo`…) y un
+`@media print` al final que regresa los claros. La barra usa
+`public/roster101-claro.svg`; `public/logo.svg` (blanco, para la barra azul
+vieja) se queda por si algo de fuera lo pide. La hoja de firma sigue blanca a
+propósito. Si se agrega un color nuevo, que sea sobre oscuro: nada de `#fff`
+de fondo con tinta oscura salvo el botón primario.
