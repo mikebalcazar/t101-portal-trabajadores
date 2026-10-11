@@ -118,8 +118,9 @@ jobs:
           liga=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' /tmp/salida.txt | head -1)
           if [ -z "$liga" ]; then echo 'No pude sacar la liga del portal de la salida de wrangler.' >&2; exit 1; fi
           # El portal de Taller 101 se mide en su dominio: su workers.dev manda
-          # para allá desde el 25-sep (DOMINIO_PROPIO en wrangler.toml).
-          if [ "${{ matrix.cliente.raiz }}" = "true" ]; then liga=https://roster101.taller101.com; fi
+          # para allá desde el 25-sep (DOMINIO_PROPIO en wrangler.toml), y desde
+          # el 11-oct el dominio es roster.suite101.app.
+          if [ "${{ matrix.cliente.raiz }}" = "true" ]; then liga=https://roster.suite101.app; fi
           echo "liga=$liga" >> "$GITHUB_OUTPUT"
           echo "Publicado en $liga"
 
@@ -131,7 +132,10 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          sleep 12
+          # Un custom domain recién colgado tarda en tener certificado: antes de
+          # medir, se espera a que conteste (hasta dos minutos).
+          url="${{ steps.publicar.outputs.liga }}"
+          for i in $(seq 1 24); do curl -sf -o /dev/null "$url" && break; sleep 5; done
           PORTAL="${{ steps.publicar.outputs.liga }}" node scripts/medir-puerta.mjs 2>&1 | tee /tmp/medicion.txt
 
       - name: Dejar la medición en el commit
@@ -158,8 +162,9 @@ jobs:
       - name: Revisar que el portal responda
         run: |
           set -euo pipefail
-          sleep 12
-          curl -fsS "${{ steps.publicar.outputs.liga }}/api/salud"
+          url="${{ steps.publicar.outputs.liga }}"
+          for i in $(seq 1 24); do curl -sf -o /dev/null "$url" && break; sleep 5; done
+          curl -fsS "$url/api/salud"
           echo
 
   # El chat no alcanza producción; el corredor sí. Deja los números medidos
@@ -168,5 +173,5 @@ jobs:
     needs: publicar
     uses: ./.github/workflows/verificar.yml
     with:
-      url: https://t101-portal.mike-929.workers.dev
+      url: https://roster.suite101.app
       rutas: /api/salud

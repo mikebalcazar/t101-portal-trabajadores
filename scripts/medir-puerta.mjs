@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
  *     PORTAL=https://… node scripts/medir-puerta.mjs
  */
 
-const PORTAL = (process.env.PORTAL || 'https://roster101.taller101.com').replace(/\/$/, '');
+const PORTAL = (process.env.PORTAL || 'https://roster.suite101.app').replace(/\/$/, '');
 const API = process.env.API || 'https://suite101-api.mike-929.workers.dev';
 
 let fallas = 0, revisadas = 0;
