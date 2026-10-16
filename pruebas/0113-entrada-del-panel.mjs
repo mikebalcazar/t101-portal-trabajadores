@@ -218,6 +218,22 @@ await p.locator('#btn-clave').click();
 await p.waitForSelector('#panel:not(.oculto)', { timeout: 8000 });
 rev(true, 'la contraseña recién puesta abre');
 
+/* 16-oct-2026 · Al abrir con la sesión viva, la lista sale a la par de
+ * «quién soy en el panel», no después. Se compara el orden de los eventos y
+ * no milisegundos: aquí las respuestas son instantáneas. */
+{
+  let paso = 0;
+  const salen = new Map(), acaban = new Map();
+  const sale = (r) => { const u = new URL(r.url()).pathname; if (!salen.has(u)) salen.set(u, ++paso); };
+  const acaba = (r) => { const u = new URL(r.url()).pathname; if (!acaban.has(u)) acaban.set(u, ++paso); };
+  p.on('request', sale); p.on('requestfinished', acaba);
+  await p.reload();
+  await p.waitForSelector('#panel:not(.oculto)', { timeout: 8000 });
+  p.off('request', sale); p.off('requestfinished', acaba);
+  const lista = salen.get('/api/admin/trabajadores'), quien = acaban.get('/api/admin/yo');
+  rev(!!lista && !!quien && lista < quien, 'al abrir, la lista sale a la par de «quién soy», no después', `${lista} vs ${quien}`);
+}
+
 const ancho = await p.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
 rev(ancho[0] <= ancho[1], 'no hay scroll horizontal en un teléfono de 390 px', ancho.join(' vs '));
 rev(errores.length === 0, 'cero errores de JavaScript', errores.join(' | ') || 'ninguno');

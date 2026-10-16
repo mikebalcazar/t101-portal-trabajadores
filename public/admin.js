@@ -264,11 +264,16 @@ $('#btn-refrescar').addEventListener('click', cargar);
 $('#buscar').addEventListener('input', pintar);
 
 async function abrir() {
+  // 16-oct-2026 · La lista sale A LA PAR de «quién soy en el panel», no
+  // después: son dos viajes que no dependen uno del otro. Sin sesión las dos
+  // contestan 401 y la lista ni se pinta.
+  const lista = api('/api/admin/trabajadores');
+  lista.catch(() => {});
   yo = await api('/api/admin/yo');      // si no hay sesión, esto lanza 401 y no abrimos nada
   $('#btn-salir').classList.remove('oculto');
   aplicaPermisos();
   ponVista(vista, false);   // solo acomoda; pintar viene con los datos
-  await cargar();
+  await cargar(lista);
   $('#acceso').classList.add('oculto');
   $('#panel').classList.remove('oculto');
 }
@@ -286,8 +291,10 @@ function aplicaPermisos() {
   document.body.classList.toggle('sin-baja', !puedo('baja'));
 }
 
-async function cargar() {
-  const d = await api('/api/admin/trabajadores');
+/** `lista`: la lectura que ya salió al abrir, si la hay. Desde el botón de
+ *  refrescar llega el evento del clic, y entonces se pide de nuevo. */
+async function cargar(lista) {
+  const d = await (lista instanceof Promise ? lista : api('/api/admin/trabajadores'));
   trabajadores = d.trabajadores;
   equipos = d.equipos || [];
   pintarFiltroEquipo();
