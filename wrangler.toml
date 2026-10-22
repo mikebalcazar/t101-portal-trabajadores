@@ -54,7 +54,7 @@ DOMINIO_ANTERIOR = "roster101.taller101.com"
 ORG_ID = "forespot"
 
 EMPRESA = "Taller 101"
-CORREO_REMITENTE = "Taller 101 <expedientes@envios.taller101.mx>"
+CORREO_REMITENTE = "Taller 101 <expedientes@correo.suite101.app>"
 CORREO_AVISOS = "mike@forespot.com"
 
 # La empresa que está usando roster101. De aquí sale su nombre en TODAS partes:
@@ -94,7 +94,7 @@ service = "suite101-api-staging"
 [env.staging.vars]
 ORG_ID = "demo"
 EMPRESA = "Empresa demo"
-CORREO_REMITENTE = "Empresa demo <expedientes@envios.taller101.mx>"
+CORREO_REMITENTE = "Empresa demo <expedientes@correo.suite101.app>"
 CORREO_AVISOS = "mike@forespot.com"
 RAZON_SOCIAL = "Empresa Demo SA de CV"
 DOMICILIO = "Domicilio de prueba, Ciudad de México"
